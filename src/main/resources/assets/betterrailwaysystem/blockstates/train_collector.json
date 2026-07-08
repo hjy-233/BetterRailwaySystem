@@ -1,0 +1,7 @@
+{
+  "variants": {
+    "": {
+      "model": "betterrailwaysystem:block/train_collector"
+    }
+  }
+}
