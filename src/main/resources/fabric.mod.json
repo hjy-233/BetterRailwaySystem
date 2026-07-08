@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "id": "betterrailwaysystem",
+  "version": "${version}",
+  "name": "BetterRailwaySystem",
+  "icon": "assets/betterrailwaysystem/icon.png",
+  "description": "Enhances vanilla minecarts without replacing vanilla rails.",
+  "authors": [],
+  "contact": {},
+  "license": "GPL-3.0",
+  "environment": "*",
+  "entrypoints": {
+    "fabric-datagen": [
+      "org.dcstudio.client.BetterRailwaySystemDataGenerator"
+    ],
+    "client": [
+      "org.dcstudio.client.BetterRailwaySystemClient"
+    ],
+    "modmenu": [
+      "org.dcstudio.client.BetterRailwaySystemModMenu"
+    ],
+    "main": [
+      "org.dcstudio.BetterRailwaySystem"
+    ]
+  },
+  "mixins": [
+    "betterrailwaysystem.mixins.json",
+    {
+      "config": "betterrailwaysystem.client.mixins.json",
+      "environment": "client"
+    }
+  ],
+  "depends": {
+    "fabricloader": ">=${loader_version}",
+    "fabric-api": "*",
+    "minecraft": "${minecraft_version}"
+  },
+  "suggests": {
+    "modmenu": "*"
+  }
+}
