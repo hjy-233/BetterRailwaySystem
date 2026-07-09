@@ -1,23 +1,13 @@
 package org.dcstudio.renderer;
 
-import com.lowdragmc.lowdraglib2.gui.holder.ModularUIScreen;
-import com.lowdragmc.lowdraglib2.gui.ui.ModularUI;
-import com.lowdragmc.lowdraglib2.gui.ui.UI;
-import com.lowdragmc.lowdraglib2.gui.ui.UIElement;
-import com.lowdragmc.lowdraglib2.gui.ui.elements.Button;
-import com.lowdragmc.lowdraglib2.gui.ui.elements.Label;
-import com.lowdragmc.lowdraglib2.gui.ui.elements.ScrollerView;
-import com.lowdragmc.lowdraglib2.gui.ui.elements.Selector;
-import com.lowdragmc.lowdraglib2.gui.ui.elements.TextField;
-import com.lowdragmc.lowdraglib2.gui.ui.elements.Toggle;
-import com.lowdragmc.lowdraglib2.gui.ui.style.LayoutStyle;
-import com.lowdragmc.lowdraglib2.gui.ui.styletemplate.Sprites;
-import com.lowdragmc.lowdraglib2.gui.ui.utils.UIElementProvider;
-import dev.vfyjxf.taffy.style.AlignContent;
-import dev.vfyjxf.taffy.style.AlignItems;
-import dev.vfyjxf.taffy.style.FlexDirection;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.gui.screen.Screen;
+import net.minecraft.client.gui.widget.ButtonWidget;
+import net.minecraft.client.gui.widget.CheckboxWidget;
+import net.minecraft.client.gui.widget.CyclingButtonWidget;
+import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.text.Text;
 import net.minecraft.util.math.MathHelper;
 import org.dcstudio.minecart.LineThemeColor;
@@ -27,202 +17,189 @@ import org.dcstudio.network.SaveTrainSpawnerPayload;
 import org.dcstudio.station.TrainSpawnerBlockEntity;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
-import java.util.function.Consumer;
 
-// 使用 LDLib2 编辑发车器的线路编号和发车策略。
-public final class TrainSpawnerScreen extends ModularUIScreen {
+// 使用原生 Screen 编辑发车器的城市、线路和发车策略。
+public final class TrainSpawnerScreen extends Screen {
     private static final String CREATE_CITY_VALUE = "__create__";
+    private static final int PANEL_WIDTH = 396;
+    private static final int PANEL_HEIGHT = 308;
+    private static final int LABEL_WIDTH = 108;
+
+    private final OpenTrainSpawnerEditorPayload payload;
+    private NativeFormWidgets.FormListWidget formList;
+    private TextFieldWidget cityField;
+    private TextFieldWidget lineIdField;
+    private TextFieldWidget targetCountField;
+    private CyclingButtonWidget<String> citySelectorButton;
+    private CyclingButtonWidget<LineThemeColor> lineColorButton;
+    private CyclingButtonWidget<TrainSpawnDirection> directionButton;
+    private CheckboxWidget redstoneCheckbox;
+    private CheckboxWidget circularCheckbox;
+    private List<String> cityOptions = List.of();
+    private TrainSpawnDirection fallbackDirection = TrainSpawnDirection.EAST;
+    private int panelWidth;
+    private int panelHeight;
+    private int panelX;
+    private int panelY;
 
     public TrainSpawnerScreen(OpenTrainSpawnerEditorPayload payload) {
-        super(betterrailwaysystem$createUi(payload), Text.translatable("screen.betterrailwaysystem.train_spawner"));
+        super(Text.translatable("screen.betterrailwaysystem.train_spawner"));
+        this.payload = payload;
     }
 
-    private static ModularUI betterrailwaysystem$createUi(OpenTrainSpawnerEditorPayload payload) {
-        List<String> cityOptions = new ArrayList<>(payload.cityOptions());
-        String defaultCity = payload.cityOptions().isEmpty() ? "Default" : payload.cityOptions().getFirst();
-        if (!cityOptions.contains(defaultCity) && !defaultCity.isBlank()) {
-            cityOptions.add(defaultCity);
-        }
-        cityOptions.add(CREATE_CITY_VALUE);
+    @Override
+    protected void init() {
+        super.init();
+        betterrailwaysystem$layoutBounds();
+        int contentX = panelX + 12;
+        int contentY = panelY + 34;
+        int contentWidth = panelWidth - 24;
+        int footerY = panelY + panelHeight - 26;
 
-        TextField cityField = betterrailwaysystem$layout(new TextField()
-                .setText(defaultCity, false), layout -> {
-            layout.height(20);
-            layout.flex(1);
-        });
-        TextField lineIdField = betterrailwaysystem$layout(new TextField()
-                .setText(payload.lineId(), false), layout -> {
-            layout.height(20);
-            layout.flex(1);
-        });
-        TextField intervalField = betterrailwaysystem$layout(new TextField()
-                .setNumbersOnlyInt(1, 3600)
-                .setText(Integer.toString(payload.intervalSeconds()), false), layout -> {
-            layout.height(20);
-            layout.flex(1);
-        });
+        cityOptions = betterrailwaysystem$buildCityOptions();
+        String initialCity = cityOptions.stream().filter(option -> !CREATE_CITY_VALUE.equals(option)).findFirst().orElse("Default");
+
+        cityField = new TextFieldWidget(textRenderer, 0, 0, 110, 20, Text.empty());
+        cityField.setMaxLength(32);
+        cityField.setText(initialCity);
+
+        lineIdField = new TextFieldWidget(textRenderer, 0, 0, 110, 20, Text.empty());
+        lineIdField.setMaxLength(32);
+        lineIdField.setText(payload.lineId());
+
+        targetCountField = new TextFieldWidget(textRenderer, 0, 0, 80, 20, Text.empty());
+        targetCountField.setText(Integer.toString(payload.targetTrainCount()));
+        targetCountField.setMaxLength(2);
+        targetCountField.setTextPredicate(value -> value.isEmpty() || betterrailwaysystem$isIntInRange(value, 1, 64));
+
+        citySelectorButton = CyclingButtonWidget.<String>builder(value ->
+                        CREATE_CITY_VALUE.equals(value)
+                                ? Text.translatable("screen.betterrailwaysystem.city_mode.create")
+                                : Text.literal(value))
+                .values(cityOptions)
+                .initially(initialCity)
+                .build(0, 0, 120, 20, Text.empty(), (button, value) -> {
+                    boolean creating = CREATE_CITY_VALUE.equals(value);
+                    cityField.setEditable(creating);
+                    cityField.active = creating;
+                    if (!creating) {
+                        cityField.setText(value);
+                    }
+                });
+        cityField.setEditable(false);
+        cityField.active = false;
+
+        lineColorButton = CyclingButtonWidget.<LineThemeColor>builder(color ->
+                        Text.translatable("screen.betterrailwaysystem.line_theme_color." + color.serializedName()))
+                .values(List.of(LineThemeColor.values()))
+                .initially(LineThemeColor.fromString(payload.lineThemeColor()))
+                .build(0, 0, 120, 20, Text.empty());
 
         List<TrainSpawnDirection> directionOptions = betterrailwaysystem$detectDirections(payload);
-        TrainSpawnDirection initialDirection = TrainSpawnDirection.fromString(payload.direction());
         if (directionOptions.isEmpty()) {
-            directionOptions = new ArrayList<>(List.of(initialDirection.isLegacyRelative() ? TrainSpawnDirection.EAST : initialDirection));
+            directionOptions = new ArrayList<>(List.of(TrainSpawnDirection.fromString(payload.direction())));
         }
+        fallbackDirection = directionOptions.getFirst();
+        TrainSpawnDirection initialDirection = TrainSpawnDirection.fromString(payload.direction());
         if (!directionOptions.contains(initialDirection)) {
-            initialDirection = directionOptions.getFirst();
+            initialDirection = fallbackDirection;
         }
-        TrainSpawnDirection resolvedInitialDirection = initialDirection;
+        directionButton = CyclingButtonWidget.<TrainSpawnDirection>builder(direction ->
+                        Text.translatable("screen.betterrailwaysystem.direction." + direction.serializedName()))
+                .values(directionOptions)
+                .initially(initialDirection)
+                .build(0, 0, 120, 20, Text.empty());
 
-        Selector<String> citySelector = betterrailwaysystem$layout(new Selector<String>()
-                .setCandidates(cityOptions)
-                .setCandidateUIProvider(UIElementProvider.text(value -> CREATE_CITY_VALUE.equals(value) ? Text.translatable("screen.betterrailwaysystem.city_mode.create") : Text.literal(value == null ? "" : value)))
-                .setSelected(cityOptions.contains(defaultCity) ? defaultCity : CREATE_CITY_VALUE, false)
-                .setOnValueChanged(value -> {
-                    boolean creating = CREATE_CITY_VALUE.equals(value);
-                    cityField.setActive(creating);
-                    if (!creating && value != null) {
-                        cityField.setText(value, false);
-                    }
-                }), layout -> {
-            layout.height(20);
-            layout.flex(1);
-        });
-        cityField.setActive(CREATE_CITY_VALUE.equals(citySelector.getValue()));
+        redstoneCheckbox = CheckboxWidget.builder(Text.translatable("screen.betterrailwaysystem.redstone_spawn_enabled"), textRenderer)
+                .pos(0, 0)
+                .checked(payload.redstoneControlled())
+                .maxWidth(contentWidth - 24)
+                .build();
+        circularCheckbox = CheckboxWidget.builder(Text.translatable("screen.betterrailwaysystem.circular_line"), textRenderer)
+                .pos(0, 0)
+                .checked(payload.circularLine())
+                .maxWidth(contentWidth - 24)
+                .build();
 
-        Selector<LineThemeColor> colorSelector = betterrailwaysystem$layout(new Selector<LineThemeColor>()
-                .setCandidates(Arrays.stream(LineThemeColor.values()).toList())
-                .setCandidateUIProvider(UIElementProvider.text(value -> Text.translatable("screen.betterrailwaysystem.line_theme_color." + (value == null ? LineThemeColor.BLUE.serializedName() : value.serializedName()))))
-                .setSelected(LineThemeColor.fromString(payload.lineThemeColor()), false), layout -> {
-            layout.height(20);
-            layout.flex(1);
-        });
-        Selector<TrainSpawnDirection> directionSelector = betterrailwaysystem$layout(new Selector<TrainSpawnDirection>()
-                .setCandidates(directionOptions)
-                .setCandidateUIProvider(UIElementProvider.text(value -> Text.translatable("screen.betterrailwaysystem.direction." + (value == null ? resolvedInitialDirection.serializedName() : value.serializedName()))))
-                .setSelected(resolvedInitialDirection, false), layout -> {
-            layout.height(20);
-            layout.flex(1);
-        });
+        formList = NativeFormWidgets.createFormList(client, contentX, contentY, contentWidth, footerY - contentY - 8, contentWidth - 16);
+        formList.setEntries(List.of(
+                new NativeFormWidgets.LabeledWidgetEntry(Text.translatable("screen.betterrailwaysystem.city_selector"), citySelectorButton, LABEL_WIDTH),
+                new NativeFormWidgets.LabeledWidgetEntry(Text.translatable("screen.betterrailwaysystem.city_name"), cityField, LABEL_WIDTH),
+                new NativeFormWidgets.LabeledWidgetEntry(Text.translatable("screen.betterrailwaysystem.line_id"), lineIdField, LABEL_WIDTH),
+                new NativeFormWidgets.LabeledWidgetEntry(Text.translatable("screen.betterrailwaysystem.target_train_count"), targetCountField, LABEL_WIDTH),
+                new NativeFormWidgets.LabeledWidgetEntry(Text.translatable("screen.betterrailwaysystem.line_theme_color"), lineColorButton, LABEL_WIDTH),
+                new NativeFormWidgets.LabeledWidgetEntry(Text.translatable("screen.betterrailwaysystem.direction"), directionButton, LABEL_WIDTH),
+                new NativeFormWidgets.FullWidthWidgetEntry(redstoneCheckbox),
+                new NativeFormWidgets.FullWidthWidgetEntry(circularCheckbox)
+        ));
+        addDrawableChild(formList);
 
-        Toggle redstoneToggle = betterrailwaysystem$layout(new Toggle()
-                .setText(Text.translatable("screen.betterrailwaysystem.redstone_spawn_enabled"))
-                .setOn(payload.redstoneControlled(), false), layout -> layout.height(20));
-        Toggle circularToggle = betterrailwaysystem$layout(new Toggle()
-                .setText(Text.translatable("screen.betterrailwaysystem.circular_line"))
-                .setOn(payload.circularLine(), false), layout -> layout.height(20));
-
-        UIElement rows = new UIElement()
-                .layout(layout -> {
-                    layout.widthPercent(100);
-                    layout.flexDirection(FlexDirection.COLUMN);
-                    layout.gapAll(6);
-                })
-                .addChildren(
-                        betterrailwaysystem$labeledRow("screen.betterrailwaysystem.city_selector", citySelector),
-                        betterrailwaysystem$labeledRow("screen.betterrailwaysystem.city_name", cityField),
-                        betterrailwaysystem$labeledRow("screen.betterrailwaysystem.line_id", lineIdField),
-                        betterrailwaysystem$labeledRow("screen.betterrailwaysystem.interval_seconds", intervalField),
-                        betterrailwaysystem$labeledRow("screen.betterrailwaysystem.line_theme_color", colorSelector),
-                        betterrailwaysystem$labeledRow("screen.betterrailwaysystem.direction", directionSelector),
-                        redstoneToggle,
-                        circularToggle
-                );
-
-        ScrollerView scrollerView = betterrailwaysystem$layout(new ScrollerView()
-                .addScrollViewChild(rows), layout -> {
-            layout.widthPercent(100);
-            layout.flex(1);
-            layout.minHeight(0);
-        });
-
-        Button doneButton = betterrailwaysystem$layout(new Button()
-                .setText(Text.translatable("gui.done"))
-                .setOnClick(event -> {
-                    int intervalSeconds = betterrailwaysystem$parseInt(intervalField.getText(), payload.intervalSeconds(), 1, 3600);
-                    String selectedCity = citySelector.getValue();
-                    String cityName = CREATE_CITY_VALUE.equals(selectedCity) ? cityField.getText().trim() : (selectedCity == null ? cityField.getText().trim() : selectedCity);
-                    LineThemeColor lineThemeColor = colorSelector.getValue() == null ? LineThemeColor.BLUE : colorSelector.getValue();
-                    TrainSpawnDirection direction = directionSelector.getValue() == null ? resolvedInitialDirection : directionSelector.getValue();
-                    ClientPlayNetworking.send(new SaveTrainSpawnerPayload(
-                            payload.pos(),
-                            cityName,
-                            lineIdField.getText().trim(),
-                            lineThemeColor.serializedName(),
-                            direction.serializedName(),
-                            intervalSeconds,
-                            (redstoneToggle.isOn() ? 1 : 0) | (circularToggle.isOn() ? 2 : 0)
-                    ));
-                    MinecraftClient.getInstance().setScreen(null);
-                }), layout -> {
-            layout.height(20);
-            layout.flex(1);
-        });
-        Button cancelButton = betterrailwaysystem$layout(new Button()
-                .setText(Text.translatable("gui.cancel"))
-                .setOnClick(event -> MinecraftClient.getInstance().setScreen(null)), layout -> {
-            layout.height(20);
-            layout.flex(1);
-        });
-
-        UIElement footer = new UIElement()
-                .layout(layout -> {
-                    layout.widthPercent(100);
-                    layout.flexDirection(FlexDirection.ROW);
-                    layout.gapAll(8);
-                })
-                .addChildren(doneButton, cancelButton);
-
-        UIElement panel = new UIElement()
-                .layout(layout -> {
-                    layout.widthPercent(56);
-                    layout.maxWidth(340);
-                    layout.minWidth(250);
-                    layout.heightPercent(68);
-                    layout.maxHeight(320);
-                    layout.minHeight(230);
-                    layout.paddingAll(8);
-                    layout.gapAll(8);
-                    layout.flexDirection(FlexDirection.COLUMN);
-                })
-                .style(style -> style.backgroundTexture(Sprites.BORDER))
-                .addChildren(
-                        new Label()
-                                .setText(Text.translatable("screen.betterrailwaysystem.train_spawner"))
-                                .textStyle(textStyle -> textStyle.fontSize(18))
-                                .layout(layout -> layout.height(24)),
-                        scrollerView,
-                        footer
-                );
-
-        UIElement root = new UIElement()
-                .layout(layout -> {
-                    layout.widthPercent(100);
-                    layout.heightPercent(100);
-                    layout.justifyContent(AlignContent.CENTER);
-                    layout.alignItems(AlignItems.CENTER);
-                })
-                .addChild(panel);
-        return new ModularUI(UI.of(root));
+        addDrawableChild(ButtonWidget.builder(Text.translatable("gui.done"), button -> betterrailwaysystem$save())
+                .dimensions(panelX + 12, footerY, (panelWidth - 32) / 2, 20)
+                .build());
+        addDrawableChild(ButtonWidget.builder(Text.translatable("gui.cancel"), button -> close())
+                .dimensions(panelX + 20 + (panelWidth - 32) / 2, footerY, (panelWidth - 32) / 2, 20)
+                .build());
+        setInitialFocus(lineIdField);
     }
 
-    private static UIElement betterrailwaysystem$labeledRow(String translationKey, UIElement field) {
-        return new UIElement()
-                .layout(layout -> {
-                    layout.widthPercent(100);
-                    layout.flexDirection(FlexDirection.ROW);
-                    layout.alignItems(AlignItems.CENTER);
-                    layout.gapAll(8);
-                })
-                .addChildren(
-                        new Label()
-                                .setText(Text.translatable(translationKey))
-                                .layout(layout -> {
-                                    layout.width(106);
-                                    layout.height(20);
-                                }),
-                        field
-                );
+    @Override
+    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
+        super.renderBackground(context, mouseX, mouseY, delta);
+        context.fill(panelX, panelY, panelX + panelWidth, panelY + panelHeight, 0xE0101010);
+        context.drawBorder(panelX, panelY, panelWidth, panelHeight, 0xFF8B8B8B);
+        context.drawCenteredTextWithShadow(textRenderer, title, width / 2, panelY + 12, 0xFFFFFF);
+        super.render(context, mouseX, mouseY, delta);
+    }
+
+    @Override
+    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta) {
+    }
+
+    private void betterrailwaysystem$layoutBounds() {
+        panelWidth = Math.max(320, Math.min(PANEL_WIDTH, width - 40));
+        panelHeight = Math.max(250, Math.min(PANEL_HEIGHT, height - 40));
+        panelX = (width - panelWidth) / 2;
+        panelY = (height - panelHeight) / 2;
+    }
+
+    private List<String> betterrailwaysystem$buildCityOptions() {
+        List<String> options = new ArrayList<>(payload.cityOptions());
+        String fallbackCity = options.isEmpty() ? "Default" : options.getFirst();
+        if (!options.contains(fallbackCity) && !fallbackCity.isBlank()) {
+            options.add(fallbackCity);
+        }
+        options.add(CREATE_CITY_VALUE);
+        return options;
+    }
+
+    private void betterrailwaysystem$save() {
+        int targetTrainCount = betterrailwaysystem$parseInt(targetCountField.getText(), payload.targetTrainCount(), 1, 64);
+        String selectedCity = citySelectorButton.getValue();
+        String cityName = CREATE_CITY_VALUE.equals(selectedCity) ? cityField.getText().trim() : selectedCity;
+        LineThemeColor lineThemeColor = lineColorButton.getValue() == null ? LineThemeColor.BLUE : lineColorButton.getValue();
+        TrainSpawnDirection direction = directionButton.getValue() == null ? fallbackDirection : directionButton.getValue();
+        int flags = (redstoneCheckbox.isChecked() ? 1 : 0) | (circularCheckbox.isChecked() ? 2 : 0);
+        ClientPlayNetworking.send(new SaveTrainSpawnerPayload(
+                payload.pos(),
+                cityName,
+                lineIdField.getText().trim(),
+                lineThemeColor.serializedName(),
+                direction.serializedName(),
+                targetTrainCount,
+                flags
+        ));
+        close();
+    }
+
+    private static boolean betterrailwaysystem$isIntInRange(String value, int min, int max) {
+        try {
+            int parsed = Integer.parseInt(value);
+            return parsed >= min && parsed <= max;
+        } catch (NumberFormatException ignored) {
+            return false;
+        }
     }
 
     private static int betterrailwaysystem$parseInt(String value, int fallback, int min, int max) {
@@ -239,10 +216,5 @@ public final class TrainSpawnerScreen extends ModularUIScreen {
             return new ArrayList<>();
         }
         return new ArrayList<>(TrainSpawnerBlockEntity.detectDirections(client.world, payload.pos()));
-    }
-
-    private static <T extends UIElement> T betterrailwaysystem$layout(T element, Consumer<LayoutStyle> consumer) {
-        element.layout(consumer);
-        return element;
     }
 }

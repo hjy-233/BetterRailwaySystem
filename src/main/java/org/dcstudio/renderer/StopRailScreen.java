@@ -1,154 +1,117 @@
 package org.dcstudio.renderer;
 
-import com.lowdragmc.lowdraglib2.gui.holder.ModularUIScreen;
-import com.lowdragmc.lowdraglib2.gui.ui.ModularUI;
-import com.lowdragmc.lowdraglib2.gui.ui.UI;
-import com.lowdragmc.lowdraglib2.gui.ui.UIElement;
-import com.lowdragmc.lowdraglib2.gui.ui.elements.Button;
-import com.lowdragmc.lowdraglib2.gui.ui.elements.Label;
-import com.lowdragmc.lowdraglib2.gui.ui.elements.ScrollerView;
-import com.lowdragmc.lowdraglib2.gui.ui.elements.Selector;
-import com.lowdragmc.lowdraglib2.gui.ui.elements.TextField;
-import com.lowdragmc.lowdraglib2.gui.ui.style.LayoutStyle;
-import com.lowdragmc.lowdraglib2.gui.ui.styletemplate.Sprites;
-import com.lowdragmc.lowdraglib2.gui.ui.utils.UIElementProvider;
-import dev.vfyjxf.taffy.style.AlignContent;
-import dev.vfyjxf.taffy.style.AlignItems;
-import dev.vfyjxf.taffy.style.FlexDirection;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
-import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.gui.screen.Screen;
+import net.minecraft.client.gui.widget.ButtonWidget;
+import net.minecraft.client.gui.widget.CyclingButtonWidget;
+import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.text.Text;
 import net.minecraft.util.math.MathHelper;
 import org.dcstudio.minecart.StopRailWaitMode;
 import org.dcstudio.network.OpenStopRailEditorPayload;
 import org.dcstudio.network.SaveStopRailPayload;
 
-import java.util.Arrays;
-import java.util.function.Consumer;
+import java.util.List;
 
-// 使用 LDLib2 编辑停车轨的停车距离和等待模式。
-public final class StopRailScreen extends ModularUIScreen {
+// 使用原生 Screen 编辑停车轨的停车距离和等待模式。
+public final class StopRailScreen extends Screen {
+    private static final int PANEL_WIDTH = 300;
+    private static final int PANEL_HEIGHT = 196;
+    private static final int LABEL_WIDTH = 96;
+
+    private final OpenStopRailEditorPayload payload;
+    private NativeFormWidgets.FormListWidget formList;
+    private TextFieldWidget stopDistanceField;
+    private TextFieldWidget dwellSecondsField;
+    private CyclingButtonWidget<StopRailWaitMode> waitModeButton;
+    private int panelWidth;
+    private int panelHeight;
+    private int panelX;
+    private int panelY;
+
     public StopRailScreen(OpenStopRailEditorPayload payload) {
-        super(betterrailwaysystem$createUi(payload), Text.translatable("screen.betterrailwaysystem.stop_rail"));
+        super(Text.translatable("screen.betterrailwaysystem.stop_rail"));
+        this.payload = payload;
     }
 
-    private static ModularUI betterrailwaysystem$createUi(OpenStopRailEditorPayload payload) {
-        TextField stopDistanceField = betterrailwaysystem$layout(new TextField()
-                .setNumbersOnlyInt(1, 128)
-                .setText(Integer.toString(payload.stopDistance()), false), layout -> {
-            layout.height(20);
-            layout.flex(1);
-        });
-        TextField dwellSecondsField = betterrailwaysystem$layout(new TextField()
-                .setNumbersOnlyInt(0, 600)
-                .setText(Integer.toString(payload.dwellSeconds()), false), layout -> {
-            layout.height(20);
-            layout.flex(1);
-        });
-        Selector<StopRailWaitMode> waitModeSelector = betterrailwaysystem$layout(new Selector<StopRailWaitMode>()
-                .setCandidates(Arrays.stream(StopRailWaitMode.values()).toList())
-                .setCandidateUIProvider(UIElementProvider.text(value -> Text.translatable("screen.betterrailwaysystem.wait_mode." + (value == null ? StopRailWaitMode.TIMER.serializedName() : value.serializedName()))))
-                .setSelected(StopRailWaitMode.fromString(payload.waitMode()), false), layout -> {
-            layout.height(20);
-            layout.flex(1);
-        });
+    @Override
+    protected void init() {
+        super.init();
+        betterrailwaysystem$layoutBounds();
+        int contentX = panelX + 12;
+        int contentY = panelY + 34;
+        int contentWidth = panelWidth - 24;
+        int footerY = panelY + panelHeight - 26;
 
-        UIElement rows = new UIElement()
-                .layout(layout -> {
-                    layout.widthPercent(100);
-                    layout.flexDirection(FlexDirection.COLUMN);
-                    layout.gapAll(6);
-                })
-                .addChildren(
-                        betterrailwaysystem$labeledRow("screen.betterrailwaysystem.stop_distance", stopDistanceField),
-                        betterrailwaysystem$labeledRow("screen.betterrailwaysystem.dwell_seconds", dwellSecondsField),
-                        betterrailwaysystem$labeledRow("screen.betterrailwaysystem.wait_mode", waitModeSelector)
-                );
+        stopDistanceField = new TextFieldWidget(textRenderer, 0, 0, 80, 20, Text.empty());
+        stopDistanceField.setText(Integer.toString(payload.stopDistance()));
+        stopDistanceField.setMaxLength(4);
+        stopDistanceField.setTextPredicate(value -> value.isEmpty() || betterrailwaysystem$isIntInRange(value, 1, 128));
 
-        ScrollerView scrollerView = betterrailwaysystem$layout(new ScrollerView()
-                .addScrollViewChild(rows), layout -> {
-            layout.widthPercent(100);
-            layout.flex(1);
-            layout.minHeight(0);
-        });
+        dwellSecondsField = new TextFieldWidget(textRenderer, 0, 0, 80, 20, Text.empty());
+        dwellSecondsField.setText(Integer.toString(payload.dwellSeconds()));
+        dwellSecondsField.setMaxLength(4);
+        dwellSecondsField.setTextPredicate(value -> value.isEmpty() || betterrailwaysystem$isIntInRange(value, 0, 600));
 
-        Button doneButton = betterrailwaysystem$layout(new Button()
-                .setText(Text.translatable("gui.done"))
-                .setOnClick(event -> {
-                    int stopDistance = betterrailwaysystem$parseInt(stopDistanceField.getText(), payload.stopDistance(), 1, 128);
-                    int dwellSeconds = betterrailwaysystem$parseInt(dwellSecondsField.getText(), payload.dwellSeconds(), 0, 600);
-                    StopRailWaitMode waitMode = waitModeSelector.getValue() == null ? StopRailWaitMode.TIMER : waitModeSelector.getValue();
-                    ClientPlayNetworking.send(new SaveStopRailPayload(payload.pos(), stopDistance, dwellSeconds, waitMode.serializedName()));
-                    MinecraftClient.getInstance().setScreen(null);
-                }), layout -> {
-            layout.height(20);
-            layout.flex(1);
-        });
-        Button cancelButton = betterrailwaysystem$layout(new Button()
-                .setText(Text.translatable("gui.cancel"))
-                .setOnClick(event -> MinecraftClient.getInstance().setScreen(null)), layout -> {
-            layout.height(20);
-            layout.flex(1);
-        });
+        waitModeButton = CyclingButtonWidget.<StopRailWaitMode>builder(mode ->
+                        Text.translatable("screen.betterrailwaysystem.wait_mode." + mode.serializedName()))
+                .values(List.of(StopRailWaitMode.values()))
+                .initially(StopRailWaitMode.fromString(payload.waitMode()))
+                .build(0, 0, 100, 20, Text.empty());
 
-        UIElement footer = new UIElement()
-                .layout(layout -> {
-                    layout.widthPercent(100);
-                    layout.flexDirection(FlexDirection.ROW);
-                    layout.gapAll(8);
-                })
-                .addChildren(doneButton, cancelButton);
+        formList = NativeFormWidgets.createFormList(client, contentX, contentY, contentWidth, footerY - contentY - 8, contentWidth - 16);
+        formList.setEntries(List.of(
+                new NativeFormWidgets.LabeledWidgetEntry(Text.translatable("screen.betterrailwaysystem.stop_distance"), stopDistanceField, LABEL_WIDTH),
+                new NativeFormWidgets.LabeledWidgetEntry(Text.translatable("screen.betterrailwaysystem.dwell_seconds"), dwellSecondsField, LABEL_WIDTH),
+                new NativeFormWidgets.LabeledWidgetEntry(Text.translatable("screen.betterrailwaysystem.wait_mode"), waitModeButton, LABEL_WIDTH)
+        ));
+        addDrawableChild(formList);
 
-        UIElement panel = new UIElement()
-                .layout(layout -> {
-                    layout.widthPercent(42);
-                    layout.maxWidth(280);
-                    layout.minWidth(220);
-                    layout.heightPercent(42);
-                    layout.maxHeight(210);
-                    layout.minHeight(170);
-                    layout.paddingAll(8);
-                    layout.gapAll(8);
-                    layout.flexDirection(FlexDirection.COLUMN);
-                })
-                .style(style -> style.backgroundTexture(Sprites.BORDER))
-                .addChildren(
-                        new Label()
-                                .setText(Text.translatable("screen.betterrailwaysystem.stop_rail"))
-                                .textStyle(textStyle -> textStyle.fontSize(18))
-                                .layout(layout -> layout.height(24)),
-                        scrollerView,
-                        footer
-                );
-
-        UIElement root = new UIElement()
-                .layout(layout -> {
-                    layout.widthPercent(100);
-                    layout.heightPercent(100);
-                    layout.justifyContent(AlignContent.CENTER);
-                    layout.alignItems(AlignItems.CENTER);
-                })
-                .addChild(panel);
-        return new ModularUI(UI.of(root));
+        addDrawableChild(ButtonWidget.builder(Text.translatable("gui.done"), button -> betterrailwaysystem$save())
+                .dimensions(panelX + 12, footerY, (panelWidth - 32) / 2, 20)
+                .build());
+        addDrawableChild(ButtonWidget.builder(Text.translatable("gui.cancel"), button -> close())
+                .dimensions(panelX + 20 + (panelWidth - 32) / 2, footerY, (panelWidth - 32) / 2, 20)
+                .build());
+        setInitialFocus(stopDistanceField);
     }
 
-    private static UIElement betterrailwaysystem$labeledRow(String translationKey, UIElement field) {
-        return new UIElement()
-                .layout(layout -> {
-                    layout.widthPercent(100);
-                    layout.flexDirection(FlexDirection.ROW);
-                    layout.alignItems(AlignItems.CENTER);
-                    layout.gapAll(8);
-                })
-                .addChildren(
-                        new Label()
-                                .setText(Text.translatable(translationKey))
-                                .layout(layout -> {
-                                    layout.width(92);
-                                    layout.height(20);
-                                }),
-                        field
-                );
+    @Override
+    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
+        super.renderBackground(context, mouseX, mouseY, delta);
+        context.fill(panelX, panelY, panelX + panelWidth, panelY + panelHeight, 0xE0101010);
+        context.drawBorder(panelX, panelY, panelWidth, panelHeight, 0xFF8B8B8B);
+        context.drawCenteredTextWithShadow(textRenderer, title, width / 2, panelY + 12, 0xFFFFFF);
+        super.render(context, mouseX, mouseY, delta);
+    }
+
+    @Override
+    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta) {
+    }
+
+    private void betterrailwaysystem$layoutBounds() {
+        panelWidth = Math.max(280, Math.min(PANEL_WIDTH, width - 40));
+        panelHeight = Math.max(176, Math.min(PANEL_HEIGHT, height - 40));
+        panelX = (width - panelWidth) / 2;
+        panelY = (height - panelHeight) / 2;
+    }
+
+    private void betterrailwaysystem$save() {
+        int stopDistance = betterrailwaysystem$parseInt(stopDistanceField.getText(), payload.stopDistance(), 1, 128);
+        int dwellSeconds = betterrailwaysystem$parseInt(dwellSecondsField.getText(), payload.dwellSeconds(), 0, 600);
+        StopRailWaitMode waitMode = waitModeButton.getValue();
+        ClientPlayNetworking.send(new SaveStopRailPayload(payload.pos(), stopDistance, dwellSeconds, waitMode.serializedName()));
+        close();
+    }
+
+    private static boolean betterrailwaysystem$isIntInRange(String value, int min, int max) {
+        try {
+            int parsed = Integer.parseInt(value);
+            return parsed >= min && parsed <= max;
+        } catch (NumberFormatException ignored) {
+            return false;
+        }
     }
 
     private static int betterrailwaysystem$parseInt(String value, int fallback, int min, int max) {
@@ -157,10 +120,5 @@ public final class StopRailScreen extends ModularUIScreen {
         } catch (NumberFormatException ignored) {
             return fallback;
         }
-    }
-
-    private static <T extends UIElement> T betterrailwaysystem$layout(T element, Consumer<LayoutStyle> consumer) {
-        element.layout(consumer);
-        return element;
     }
 }

@@ -16,7 +16,7 @@ public record OpenTrainSpawnerEditorPayload(
         String lineId,
         String lineThemeColor,
         String direction,
-        int intervalSeconds,
+        int targetTrainCount,
         int flags,
         List<String> cityOptions
 ) implements CustomPayload {
@@ -27,7 +27,7 @@ public record OpenTrainSpawnerEditorPayload(
                 PacketCodecs.STRING.encode(buf, payload.lineId);
                 PacketCodecs.STRING.encode(buf, payload.lineThemeColor);
                 PacketCodecs.STRING.encode(buf, payload.direction);
-                PacketCodecs.VAR_INT.encode(buf, payload.intervalSeconds);
+                PacketCodecs.VAR_INT.encode(buf, payload.targetTrainCount);
                 PacketCodecs.VAR_INT.encode(buf, payload.flags);
                 PacketCodecs.collection(ArrayList::new, PacketCodecs.STRING).encode(buf, new ArrayList<>(payload.cityOptions));
             },

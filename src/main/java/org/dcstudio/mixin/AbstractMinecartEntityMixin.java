@@ -775,7 +775,7 @@ public abstract class AbstractMinecartEntityMixin implements BetterRailwaySystem
 
     @Unique
     private void betterrailwaysystem$triggerBaliseIfNeeded(AbstractMinecartEntity minecart) {
-        RailwayBaliseBlockEntity blockEntity = betterrailwaysystem$findNearbyBlockEntity(minecart, RailwayBaliseBlockEntity.class, 2);
+        RailwayBaliseBlockEntity blockEntity = betterrailwaysystem$getTriggeredBlockEntity(minecart, RailwayBaliseBlockEntity.class);
         if (blockEntity == null) {
             betterrailwaysystem$lastBalisePos = Long.MIN_VALUE;
             return;
@@ -1020,7 +1020,7 @@ public abstract class AbstractMinecartEntityMixin implements BetterRailwaySystem
 
     @Unique
     private void betterrailwaysystem$collectIfNeeded(AbstractMinecartEntity minecart, ServerWorld serverWorld) {
-        TrainCollectorBlockEntity collector = betterrailwaysystem$findNearbyBlockEntity(minecart, TrainCollectorBlockEntity.class, 1);
+        TrainCollectorBlockEntity collector = betterrailwaysystem$getTriggeredBlockEntity(minecart, TrainCollectorBlockEntity.class);
         if (collector == null) {
             return;
         }
@@ -1028,6 +1028,7 @@ public abstract class AbstractMinecartEntityMixin implements BetterRailwaySystem
             RailwayLineState.get(serverWorld).updateLine(
                     betterrailwaysystem$cityName,
                     betterrailwaysystem$lineId,
+                    betterrailwaysystem$lineDirection.serializedName(),
                     betterrailwaysystem$visitedStations,
                     betterrailwaysystem$visitedStationPositions,
                     betterrailwaysystem$lineThemeColor
@@ -1064,6 +1065,7 @@ public abstract class AbstractMinecartEntityMixin implements BetterRailwaySystem
         RailwayLineState.get(serverWorld).updateLine(
                 betterrailwaysystem$cityName,
                 betterrailwaysystem$lineId,
+                betterrailwaysystem$lineDirection.serializedName(),
                 betterrailwaysystem$visitedStations,
                 betterrailwaysystem$visitedStationPositions,
                 betterrailwaysystem$lineThemeColor
@@ -1118,7 +1120,7 @@ public abstract class AbstractMinecartEntityMixin implements BetterRailwaySystem
     }
 
     @Unique
-    private <T extends BlockEntity> T betterrailwaysystem$findNearbyBlockEntity(AbstractMinecartEntity minecart, Class<T> type, int horizontalRadius) {
+    private <T extends BlockEntity> T betterrailwaysystem$getTriggeredBlockEntity(AbstractMinecartEntity minecart, Class<T> type) {
         BlockState railState = betterrailwaysystem$findRailState(minecart);
         if (railState == null) {
             return null;
@@ -1126,14 +1128,11 @@ public abstract class AbstractMinecartEntityMixin implements BetterRailwaySystem
         int baseX = betterrailwaysystem$railPos.getX();
         int baseY = betterrailwaysystem$railPos.getY();
         int baseZ = betterrailwaysystem$railPos.getZ();
-        for (int yOffset = -1; yOffset <= 1; yOffset++) {
-            for (int xOffset = -horizontalRadius; xOffset <= horizontalRadius; xOffset++) {
-                for (int zOffset = -horizontalRadius; zOffset <= horizontalRadius; zOffset++) {
-                    BlockEntity blockEntity = minecart.getWorld().getBlockEntity(betterrailwaysystem$searchPos.set(baseX + xOffset, baseY + yOffset, baseZ + zOffset));
-                    if (type.isInstance(blockEntity)) {
-                        return type.cast(blockEntity);
-                    }
-                }
+        int[] yOffsets = new int[]{-1, 0, 1};
+        for (int index = 0; index < yOffsets.length; index++) {
+            BlockEntity blockEntity = minecart.getWorld().getBlockEntity(betterrailwaysystem$searchPos.set(baseX, baseY + yOffsets[index], baseZ));
+            if (type.isInstance(blockEntity)) {
+                return type.cast(blockEntity);
             }
         }
         return null;

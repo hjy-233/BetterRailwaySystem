@@ -1,21 +1,13 @@
 package org.dcstudio.renderer;
 
-import com.lowdragmc.lowdraglib2.gui.holder.ModularUIScreen;
-import com.lowdragmc.lowdraglib2.gui.texture.ColorRectTexture;
-import com.lowdragmc.lowdraglib2.gui.ui.ModularUI;
-import com.lowdragmc.lowdraglib2.gui.ui.UI;
-import com.lowdragmc.lowdraglib2.gui.ui.UIElement;
-import com.lowdragmc.lowdraglib2.gui.ui.elements.Button;
-import com.lowdragmc.lowdraglib2.gui.ui.elements.Label;
-import com.lowdragmc.lowdraglib2.gui.ui.elements.ScrollerView;
-import com.lowdragmc.lowdraglib2.gui.ui.elements.TextField;
-import com.lowdragmc.lowdraglib2.gui.ui.event.UIEvent;
-import com.lowdragmc.lowdraglib2.gui.ui.event.UIEvents;
-import com.lowdragmc.lowdraglib2.gui.ui.rendering.GUIContext;
-import com.lowdragmc.lowdraglib2.gui.ui.style.LayoutStyle;
-import com.lowdragmc.lowdraglib2.gui.ui.styletemplate.Sprites;
-import com.lowdragmc.lowdraglib2.gui.util.DrawerHelper;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.gui.Element;
+import net.minecraft.client.gui.Selectable;
+import net.minecraft.client.gui.screen.Screen;
+import net.minecraft.client.gui.widget.ButtonWidget;
+import net.minecraft.client.gui.widget.ElementListWidget;
+import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.text.Text;
 import net.minecraft.util.math.BlockPos;
 import org.dcstudio.network.OpenLineMapPayload;
@@ -31,121 +23,410 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.Set;
-import java.util.function.Consumer;
 
-// 使用 LDLib2 绘制带缩放、拖拽和搜索的线路图。
-public final class LineMapScreen extends ModularUIScreen {
+// 原生线路图界面，支持搜索、缩放、拖拽、图例和悬浮详情。
+public final class LineMapScreen extends Screen {
     private static final float LAYOUT_GRID_SIZE = 30.0f;
+    private static final float MIN_SCALE = 0.3f;
+    private static final float MAX_SCALE = 4.0f;
+
+    private final OpenLineMapPayload payload;
+    private final GraphLayout graphLayout;
+
+    private TextFieldWidget searchField;
+    private LegendListWidget legendList;
+    private ButtonWidget backButton;
+
+    private String searchQuery = "";
+    private float offsetX;
+    private float offsetY;
+    private float scale = 1.0f;
+    private boolean viewInitialized;
+    private boolean dragging;
+    private double dragStartMouseX;
+    private double dragStartMouseY;
+    private float dragStartOffsetX;
+    private float dragStartOffsetY;
+
+    private int panelLeft;
+    private int panelTop;
+    private int panelWidth;
+    private int panelHeight;
+    private int graphLeft;
+    private int graphTop;
+    private int graphWidth;
+    private int graphHeight;
+    private int legendLeft;
+    private int legendTop;
+    private int legendWidth;
+    private int legendHeight;
 
     public LineMapScreen(OpenLineMapPayload payload) {
-        super(betterrailwaysystem$createUi(payload), Text.translatable("screen.betterrailwaysystem.line_map"));
+        super(payload.worldMap()
+                ? Text.translatable("screen.betterrailwaysystem.world_map")
+                : Text.translatable("screen.betterrailwaysystem.line_map"));
+        this.payload = payload;
+        this.graphLayout = payload.worldMap() ? betterrailwaysystem$buildWorldLayout(payload) : betterrailwaysystem$buildSingleLineLayout(payload);
     }
 
-    private static ModularUI betterrailwaysystem$createUi(OpenLineMapPayload payload) {
-        GraphLayout graphLayout = payload.worldMap() ? betterrailwaysystem$buildWorldLayout(payload) : betterrailwaysystem$buildSingleLineLayout(payload);
-        GraphElement graphElement = betterrailwaysystem$layout(new GraphElement(graphLayout), layout -> {
-            layout.widthPercent(100);
-            layout.flex(1);
-            layout.minWidth(0);
-            layout.minHeight(0);
-        });
-        TextField searchField = betterrailwaysystem$layout(new TextField()
-                .setAnyString()
-                .setText("")
-                .setTextResponder(graphElement::setSearchQuery), layout -> {
-            layout.flex(1);
-            layout.height(18);
-            layout.minWidth(0);
-        });
+    @Override
+    protected void init() {
+        super.init();
+        betterrailwaysystem$layoutBounds();
+        clearChildren();
 
-        UIElement legend = betterrailwaysystem$buildLegend(payload);
+        int searchWidth = Math.max(160, graphWidth - 110);
+        searchField = addDrawableChild(new TextFieldWidget(textRenderer, graphLeft + 72, panelTop + 30, searchWidth, 20, Text.empty()));
+        searchField.setMaxLength(128);
+        searchField.setText(searchQuery);
+        searchField.setChangedListener(this::betterrailwaysystem$setSearchQuery);
 
-        Label titleLabel = new Label();
-        titleLabel.setText(payload.worldMap()
-                ? Text.translatable("screen.betterrailwaysystem.line_map")
-                : Text.literal(payload.title().isBlank() ? "-" : payload.title()));
-        titleLabel.textStyle(textStyle -> textStyle.fontSize(18));
-        titleLabel.layout(layout -> layout.height(22));
+        legendList = addDrawableChild(new LegendListWidget(client, legendLeft, legendTop, legendWidth, legendHeight, betterrailwaysystem$buildLegendItems()));
 
-        Label subtitleLabel = new Label();
-        subtitleLabel.setText(payload.currentStation().isBlank() ? Text.literal("") : Text.literal(payload.currentStation()));
-        subtitleLabel.layout(layout -> layout.height(16));
-        subtitleLabel.setDisplay(!payload.currentStation().isBlank());
+        backButton = addDrawableChild(ButtonWidget.builder(Text.translatable("gui.back"), button -> close())
+                .dimensions(panelLeft + panelWidth - 100, panelTop + panelHeight - 24, 90, 20)
+                .build());
 
-        UIElement searchRow = new UIElement()
-                .layout(layout -> {
-                    layout.widthPercent(100);
-                    layout.height(18);
-                    layout.flexDirection(dev.vfyjxf.taffy.style.FlexDirection.ROW);
-                    layout.alignItems(dev.vfyjxf.taffy.style.AlignItems.CENTER);
-                    layout.gapAll(6);
-                })
-                .addChildren(
-                        betterrailwaysystem$label("screen.betterrailwaysystem.search_station", 10, 54),
-                        searchField
-                );
+        if (!viewInitialized) {
+            betterrailwaysystem$fitToBounds(32.0f);
+            viewInitialized = true;
+        } else {
+            betterrailwaysystem$clampOffsets();
+        }
+    }
 
-        UIElement leftPanel = new UIElement()
-                .layout(layout -> {
-                    layout.flex(1);
-                    layout.minWidth(0);
-                    layout.minHeight(0);
-                    layout.flexDirection(dev.vfyjxf.taffy.style.FlexDirection.COLUMN);
-                    layout.gapAll(6);
-                })
-                .addChildren(
-                        searchRow,
-                        betterrailwaysystem$layout(new UIElement()
-                                .style(style -> style.backgroundTexture(new ColorRectTexture(0x66000000)))
-                                .addChild(graphElement), layout -> {
-                            layout.flex(1);
-                            layout.minWidth(0);
-                            layout.minHeight(0);
-                            layout.paddingAll(4);
-                        })
-                );
+    @Override
+    public void resize(MinecraftClient client, int width, int height) {
+        String search = searchField == null ? searchQuery : searchField.getText();
+        super.resize(client, width, height);
+        betterrailwaysystem$setSearchQuery(search);
+    }
 
-        UIElement body = new UIElement()
-                .layout(layout -> {
-                    layout.widthPercent(100);
-                    layout.flex(1);
-                    layout.minHeight(0);
-                    layout.flexDirection(dev.vfyjxf.taffy.style.FlexDirection.ROW);
-                    layout.gapAll(8);
-                })
-                .addChildren(leftPanel, legend);
+    @Override
+    public void close() {
+        if (client != null) {
+            client.setScreen(null);
+        }
+    }
 
-        Button closeButton = betterrailwaysystem$layout(new Button()
-                .setText(Text.translatable("gui.back"))
-                .setOnClick(event -> MinecraftClient.getInstance().setScreen(null)), layout -> {
-            layout.height(20);
-            layout.widthPercent(100);
-        });
+    @Override
+    public boolean shouldPause() {
+        return false;
+    }
 
-        UIElement panel = new UIElement()
-                .layout(layout -> {
-                    layout.widthPercent(90);
-                    layout.maxWidth(760);
-                    layout.minWidth(380);
-                    layout.heightPercent(86);
-                    layout.maxHeight(500);
-                    layout.minHeight(280);
-                    layout.paddingAll(8);
-                    layout.gapAll(8);
-                    layout.flexDirection(dev.vfyjxf.taffy.style.FlexDirection.COLUMN);
-                })
-                .style(style -> style.backgroundTexture(Sprites.BORDER))
-                .addChildren(titleLabel, subtitleLabel, body, closeButton);
+    @Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        boolean handled = super.mouseClicked(mouseX, mouseY, button);
+        if (betterrailwaysystem$isInsideGraph(mouseX, mouseY) && (button == 0 || button == 2)) {
+            dragging = true;
+            dragStartMouseX = mouseX;
+            dragStartMouseY = mouseY;
+            dragStartOffsetX = offsetX;
+            dragStartOffsetY = offsetY;
+            setFocused(null);
+            return true;
+        }
+        return handled;
+    }
 
-        UIElement root = new UIElement()
-                .layout(layout -> {
-                    layout.widthPercent(100);
-                    layout.heightPercent(100);
-                    layout.justifyContent(dev.vfyjxf.taffy.style.AlignContent.CENTER);
-                    layout.alignItems(dev.vfyjxf.taffy.style.AlignItems.CENTER);
-                })
-                .addChild(panel);
-        return new ModularUI(UI.of(root));
+    @Override
+    public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        dragging = false;
+        return super.mouseReleased(mouseX, mouseY, button);
+    }
+
+    @Override
+    public boolean mouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY) {
+        if (dragging) {
+            float scaled = Math.max(1.0E-4f, scale);
+            offsetX = dragStartOffsetX + (float) ((dragStartMouseX - mouseX) / scaled);
+            offsetY = dragStartOffsetY + (float) ((dragStartMouseY - mouseY) / scaled);
+            betterrailwaysystem$clampOffsets();
+            return true;
+        }
+        return super.mouseDragged(mouseX, mouseY, button, deltaX, deltaY);
+    }
+
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
+        if (betterrailwaysystem$isInsideGraph(mouseX, mouseY)) {
+            float newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, scale + (float) verticalAmount * 0.1f));
+            if (Math.abs(newScale - scale) < 1.0E-4f) {
+                return true;
+            }
+            float localX = (float) (mouseX - graphLeft);
+            float localY = (float) (mouseY - graphTop);
+            offsetX += localX / scale - localX / newScale;
+            offsetY += localY / scale - localY / newScale;
+            scale = newScale;
+            betterrailwaysystem$clampOffsets();
+            return true;
+        }
+        return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
+    }
+
+    @Override
+    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
+        super.renderBackground(context, mouseX, mouseY, delta);
+        betterrailwaysystem$drawPanel(context);
+        List<Text> hoveredTooltip = betterrailwaysystem$renderGraph(context, mouseX, mouseY);
+        super.render(context, mouseX, mouseY, delta);
+        if (hoveredTooltip != null && !hoveredTooltip.isEmpty()) {
+            context.drawTooltip(textRenderer, hoveredTooltip, mouseX + 8, mouseY + 8);
+        }
+    }
+
+    @Override
+    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta) {
+    }
+
+    private void betterrailwaysystem$layoutBounds() {
+        int maxPanelWidth = payload.worldMap() ? 980 : 920;
+        int maxPanelHeight = 620;
+        panelWidth = Math.max(360, Math.min(width - 24, maxPanelWidth));
+        panelHeight = Math.max(280, Math.min(height - 24, maxPanelHeight));
+        panelLeft = (width - panelWidth) / 2;
+        panelTop = (height - panelHeight) / 2;
+
+        legendWidth = Math.max(118, Math.min(150, panelWidth / 5));
+        legendLeft = panelLeft + panelWidth - legendWidth - 10;
+        legendTop = panelTop + 56;
+        legendHeight = panelHeight - 90;
+
+        graphLeft = panelLeft + 10;
+        graphTop = panelTop + 56;
+        graphWidth = Math.max(180, legendLeft - graphLeft - 10);
+        graphHeight = panelHeight - 90;
+    }
+
+    private void betterrailwaysystem$drawPanel(DrawContext context) {
+        context.fill(panelLeft - 1, panelTop - 1, panelLeft + panelWidth + 1, panelTop + panelHeight + 1, 0xFF000000);
+        context.fill(panelLeft, panelTop, panelLeft + panelWidth, panelTop + panelHeight, 0xE01A1A1A);
+        context.drawBorder(panelLeft, panelTop, panelWidth, panelHeight, 0xFF6F6F6F);
+
+        Text titleText = payload.worldMap()
+                ? Text.translatable("screen.betterrailwaysystem.world_map")
+                : Text.literal(payload.title().isBlank() ? "-" : payload.title());
+        int titleColor = payload.worldMap() ? 0xFFEBCB8B : (0xFF000000 | payload.titleColor());
+        context.drawTextWithShadow(textRenderer, titleText, panelLeft + 10, panelTop + 10, titleColor);
+
+        if (!payload.currentStation().isBlank()) {
+            context.drawTextWithShadow(textRenderer, Text.literal(payload.currentStation()), panelLeft + 10, panelTop + 22, 0xFFFFFFFF);
+        }
+
+        context.drawTextWithShadow(textRenderer, Text.translatable("screen.betterrailwaysystem.search_station"), graphLeft, panelTop + 36, 0xFFFFFFFF);
+
+        context.fill(graphLeft - 1, graphTop - 1, graphLeft + graphWidth + 1, graphTop + graphHeight + 1, 0xFF000000);
+        context.fill(graphLeft, graphTop, graphLeft + graphWidth, graphTop + graphHeight, 0xAA111111);
+
+        context.fill(legendLeft - 1, legendTop - 1, legendLeft + legendWidth + 1, legendTop + legendHeight + 1, 0xFF000000);
+        context.fill(legendLeft, legendTop, legendLeft + legendWidth, legendTop + legendHeight, 0x66101010);
+    }
+
+    private List<Text> betterrailwaysystem$renderGraph(DrawContext context, int mouseX, int mouseY) {
+        context.enableScissor(graphLeft, graphTop, graphLeft + graphWidth, graphTop + graphHeight);
+        betterrailwaysystem$drawGrid(context);
+
+        float lineWidth = betterrailwaysystem$getLineWidth(graphWidth, graphHeight);
+        for (RenderedSegment segment : graphLayout.segments()) {
+            for (int index = 1; index < segment.points().size(); index++) {
+                Vector2f start = segment.points().get(index - 1);
+                Vector2f end = segment.points().get(index);
+                float drawX1 = graphLeft + (start.x - offsetX) * scale;
+                float drawY1 = graphTop + (start.y - offsetY) * scale;
+                float drawX2 = graphLeft + (end.x - offsetX) * scale;
+                float drawY2 = graphTop + (end.y - offsetY) * scale;
+                betterrailwaysystem$drawLine(context, drawX1, drawY1, drawX2, drawY2, 0xFF000000 | segment.color(), lineWidth);
+            }
+        }
+
+        for (RenderedCityLabel cityLabel : graphLayout.cityLabels()) {
+            int labelX = Math.round(graphLeft + (cityLabel.x() - offsetX) * scale);
+            int labelY = Math.round(graphTop + (cityLabel.y() - offsetY) * scale);
+            int labelWidth = Math.round(cityLabel.width());
+            context.fill(labelX - labelWidth / 2 - 4, labelY - 3, labelX + labelWidth / 2 + 4, labelY + 10, 0xAA000000);
+            context.drawCenteredTextWithShadow(textRenderer, cityLabel.cityName(), labelX, labelY, 0xFFEBCB8B);
+        }
+
+        List<Text> hoveredTooltip = null;
+        for (RenderedNode node : graphLayout.nodes()) {
+            boolean searchMatch = betterrailwaysystem$matchesSearch(node);
+            int size = node.transfer() ? 10 : 8;
+            if (node.current()) {
+                size = 12;
+            }
+            if (searchMatch) {
+                size += 2;
+            }
+            int centerX = Math.round(graphLeft + (node.x() - offsetX) * scale);
+            int centerY = Math.round(graphTop + (node.y() - offsetY) * scale);
+            int x = centerX - size / 2;
+            int y = centerY - size / 2;
+            int fillColor = node.transfer() ? 0xFFFFFFFF : 0xFF000000 | node.color();
+            int borderColor = searchMatch ? 0xFF6BD7FF : (node.current() ? 0xFFFFFF55 : 0xFF222222);
+            int textColor = searchMatch ? 0xFF6BD7FF : (node.current() ? 0xFFFFFF55 : 0xFFFFFFFF);
+            context.fill(x, y, x + size, y + size, fillColor);
+            context.drawBorder(x, y, size, size, borderColor);
+            context.drawTextWithShadow(textRenderer, node.stationName(), x + size + 4, y - 1, textColor);
+            if (mouseX >= x && mouseX <= x + size && mouseY >= y && mouseY <= y + size) {
+                hoveredTooltip = node.tooltipLines();
+            }
+        }
+
+        context.disableScissor();
+        return hoveredTooltip;
+    }
+
+    private void betterrailwaysystem$drawGrid(DrawContext context) {
+        float worldGrid = 64.0f;
+        float visibleWorldWidth = graphWidth / Math.max(1.0E-4f, scale);
+        float visibleWorldHeight = graphHeight / Math.max(1.0E-4f, scale);
+        float startWorldX = (float) Math.floor(offsetX / worldGrid) * worldGrid;
+        float startWorldY = (float) Math.floor(offsetY / worldGrid) * worldGrid;
+        float endWorldX = offsetX + visibleWorldWidth;
+        float endWorldY = offsetY + visibleWorldHeight;
+
+        for (float worldX = startWorldX; worldX <= endWorldX + worldGrid; worldX += worldGrid) {
+            int drawX = Math.round(graphLeft + (worldX - offsetX) * scale);
+            context.fill(drawX, graphTop, drawX + 1, graphTop + graphHeight, 0x22333333);
+        }
+        for (float worldY = startWorldY; worldY <= endWorldY + worldGrid; worldY += worldGrid) {
+            int drawY = Math.round(graphTop + (worldY - offsetY) * scale);
+            context.fill(graphLeft, drawY, graphLeft + graphWidth, drawY + 1, 0x22333333);
+        }
+    }
+
+    private void betterrailwaysystem$drawLine(DrawContext context, float x1, float y1, float x2, float y2, int color, float thickness) {
+        if (Math.abs(x1 - x2) < 0.5f) {
+            int left = Math.round(x1 - thickness / 2.0f);
+            int top = Math.round(Math.min(y1, y2) - thickness / 2.0f);
+            int right = Math.round(x1 + thickness / 2.0f + 1.0f);
+            int bottom = Math.round(Math.max(y1, y2) + thickness / 2.0f + 1.0f);
+            context.fill(left, top, right, bottom, color);
+            return;
+        }
+        if (Math.abs(y1 - y2) < 0.5f) {
+            int left = Math.round(Math.min(x1, x2) - thickness / 2.0f);
+            int top = Math.round(y1 - thickness / 2.0f);
+            int right = Math.round(Math.max(x1, x2) + thickness / 2.0f + 1.0f);
+            int bottom = Math.round(y1 + thickness / 2.0f + 1.0f);
+            context.fill(left, top, right, bottom, color);
+            return;
+        }
+
+        float dx = x2 - x1;
+        float dy = y2 - y1;
+        int steps = Math.max(1, Math.round(Math.max(Math.abs(dx), Math.abs(dy))));
+        int half = Math.max(1, Math.round(thickness / 2.0f));
+        for (int step = 0; step <= steps; step++) {
+            float progress = step / (float) steps;
+            int drawX = Math.round(x1 + dx * progress);
+            int drawY = Math.round(y1 + dy * progress);
+            context.fill(drawX - half, drawY - half, drawX + half + 1, drawY + half + 1, color);
+        }
+    }
+
+    private boolean betterrailwaysystem$isInsideGraph(double mouseX, double mouseY) {
+        return mouseX >= graphLeft && mouseX < graphLeft + graphWidth
+                && mouseY >= graphTop && mouseY < graphTop + graphHeight;
+    }
+
+    private void betterrailwaysystem$setSearchQuery(String query) {
+        searchQuery = query == null ? "" : query.trim().toLowerCase(Locale.ROOT);
+        RenderedNode firstMatch = betterrailwaysystem$findFirstSearchMatch();
+        if (firstMatch != null) {
+            if (scale < 0.9f) {
+                scale = 0.9f;
+            }
+            betterrailwaysystem$centerOn(firstMatch.x(), firstMatch.y());
+        }
+    }
+
+    private RenderedNode betterrailwaysystem$findFirstSearchMatch() {
+        if (searchQuery.isBlank()) {
+            return null;
+        }
+        for (RenderedNode node : graphLayout.nodes()) {
+            if (node.stationName().toLowerCase(Locale.ROOT).contains(searchQuery)) {
+                return node;
+            }
+        }
+        return null;
+    }
+
+    private boolean betterrailwaysystem$matchesSearch(RenderedNode node) {
+        return !searchQuery.isBlank() && node.stationName().toLowerCase(Locale.ROOT).contains(searchQuery);
+    }
+
+    private void betterrailwaysystem$fitToBounds(float padding) {
+        float graphWorldWidth = Math.max(1.0f, graphLayout.maxX() - graphLayout.minX());
+        float graphWorldHeight = Math.max(1.0f, graphLayout.maxY() - graphLayout.minY());
+        float availableWidth = Math.max(1.0f, graphWidth - padding * 2.0f);
+        float availableHeight = Math.max(1.0f, graphHeight - padding * 2.0f);
+        scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, Math.min(availableWidth / graphWorldWidth, availableHeight / graphWorldHeight)));
+        float worldViewWidth = graphWidth / scale;
+        float worldViewHeight = graphHeight / scale;
+        offsetX = graphLayout.minX() - Math.max(0.0f, (worldViewWidth - graphWorldWidth) / 2.0f);
+        offsetY = graphLayout.minY() - Math.max(0.0f, (worldViewHeight - graphWorldHeight) / 2.0f);
+        betterrailwaysystem$clampOffsets();
+    }
+
+    private void betterrailwaysystem$centerOn(float x, float y) {
+        offsetX = x - graphWidth / (2.0f * scale);
+        offsetY = y - graphHeight / (2.0f * scale);
+        betterrailwaysystem$clampOffsets();
+    }
+
+    private void betterrailwaysystem$clampOffsets() {
+        float worldViewWidth = Math.max(1.0f, graphWidth / Math.max(1.0E-4f, scale));
+        float worldViewHeight = Math.max(1.0f, graphHeight / Math.max(1.0E-4f, scale));
+        float padding = 36.0f / Math.max(1.0E-4f, scale);
+        float minOffsetX = graphLayout.minX() - padding;
+        float minOffsetY = graphLayout.minY() - padding;
+        float maxOffsetX = graphLayout.maxX() - worldViewWidth + padding;
+        float maxOffsetY = graphLayout.maxY() - worldViewHeight + padding;
+        if (minOffsetX > maxOffsetX) {
+            offsetX = (graphLayout.minX() + graphLayout.maxX() - worldViewWidth) / 2.0f;
+        } else {
+            offsetX = Math.max(minOffsetX, Math.min(maxOffsetX, offsetX));
+        }
+        if (minOffsetY > maxOffsetY) {
+            offsetY = (graphLayout.minY() + graphLayout.maxY() - worldViewHeight) / 2.0f;
+        } else {
+            offsetY = Math.max(minOffsetY, Math.min(maxOffsetY, offsetY));
+        }
+    }
+
+    private float betterrailwaysystem$getLineWidth(int width, int height) {
+        float minSize = Math.max(1.0f, Math.min(width, height));
+        return Math.max(1.4f, Math.min(4.6f, minSize / 170.0f));
+    }
+
+    private List<LegendItem> betterrailwaysystem$buildLegendItems() {
+        List<LegendItem> items = new ArrayList<>();
+        Map<String, List<OpenLineMapPayload.LineEntry>> grouped = new LinkedHashMap<>();
+        for (OpenLineMapPayload.LineEntry line : payload.lines()) {
+            grouped.computeIfAbsent(line.cityName().isBlank() ? "-" : line.cityName(), ignored -> new ArrayList<>()).add(line);
+        }
+
+        if (payload.worldMap()) {
+            grouped.forEach((cityName, lines) -> {
+                items.add(LegendItem.header(cityName));
+                for (OpenLineMapPayload.LineEntry line : lines) {
+                    items.add(LegendItem.line(betterrailwaysystem$formatLineLabel(line), line.lineColor()));
+                }
+            });
+            return items;
+        }
+
+        if (!payload.lines().isEmpty()) {
+            OpenLineMapPayload.LineEntry line = payload.lines().getFirst();
+            if (!line.cityName().isBlank()) {
+                items.add(LegendItem.header(line.cityName()));
+            }
+            items.add(LegendItem.line(betterrailwaysystem$formatLineLabel(line), line.lineColor()));
+        }
+        return items;
     }
 
     private static GraphLayout betterrailwaysystem$buildSingleLineLayout(OpenLineMapPayload payload) {
@@ -245,7 +526,7 @@ public final class LineMapScreen extends ModularUIScreen {
                 OpenLineMapPayload.StationEntry station = line.stations().get(stationIndex);
                 String nodeKey = cityName + "|" + station.stationName();
                 NodeAccumulator accumulator = accumulators.computeIfAbsent(nodeKey, ignored -> new NodeAccumulator(cityName, station.stationName()));
-                accumulator.add(44 + stationIndex * 52, fallbackY, line.lineColor(), line.lineId(), station.pos());
+                accumulator.add(44 + stationIndex * 52, fallbackY, line.lineColor(), betterrailwaysystem$formatLineLabel(line), station.pos());
                 stationKeys.add(nodeKey);
             }
             linePaths.add(new LinePath(line.lineColor(), stationKeys));
@@ -754,90 +1035,6 @@ public final class LineMapScreen extends ModularUIScreen {
         }
     }
 
-    private static UIElement betterrailwaysystem$buildLegend(OpenLineMapPayload payload) {
-        UIElement legendRows = new UIElement()
-                .layout(layout -> {
-                    layout.widthPercent(100);
-                    layout.flexDirection(dev.vfyjxf.taffy.style.FlexDirection.COLUMN);
-                    layout.gapAll(4);
-                });
-
-        Map<String, List<OpenLineMapPayload.LineEntry>> grouped = new LinkedHashMap<>();
-        for (OpenLineMapPayload.LineEntry line : payload.lines()) {
-            grouped.computeIfAbsent(line.cityName().isBlank() ? "-" : line.cityName(), ignored -> new ArrayList<>()).add(line);
-        }
-
-        if (payload.worldMap()) {
-            grouped.forEach((cityName, lines) -> {
-                legendRows.addChild(betterrailwaysystem$label(Text.literal(cityName), 10, 14));
-                for (OpenLineMapPayload.LineEntry line : lines) {
-                    legendRows.addChild(betterrailwaysystem$legendRow(line.lineId(), line.lineColor()));
-                }
-            });
-        } else if (!payload.lines().isEmpty()) {
-            OpenLineMapPayload.LineEntry line = payload.lines().getFirst();
-            if (!line.cityName().isBlank()) {
-                legendRows.addChild(betterrailwaysystem$label(Text.literal(line.cityName()), 10, 14));
-            }
-            legendRows.addChild(betterrailwaysystem$legendRow(line.lineId(), line.lineColor()));
-        }
-
-        ScrollerView legendScroller = betterrailwaysystem$layout(new ScrollerView()
-                .addScrollViewChild(legendRows), layout -> {
-            layout.widthPercent(100);
-            layout.flex(1);
-            layout.minHeight(0);
-        });
-
-        return betterrailwaysystem$layout(new UIElement()
-                .style(style -> style.backgroundTexture(new ColorRectTexture(0x66000000)))
-                .addChild(legendScroller), layout -> {
-            layout.width(110);
-            layout.minWidth(110);
-            layout.maxWidth(110);
-            layout.minHeight(0);
-            layout.paddingAll(4);
-        });
-    }
-
-    private static UIElement betterrailwaysystem$legendRow(String lineId, int color) {
-        Label label = new Label();
-        label.setText(Text.literal(lineId));
-        label.textStyle(textStyle -> textStyle.fontSize(9));
-        return betterrailwaysystem$layout(new UIElement()
-                .addChildren(
-                        betterrailwaysystem$layout(new UIElement()
-                                .style(style -> style.backgroundTexture(new ColorRectTexture(0xFF000000 | color))), layout -> {
-                            layout.width(10);
-                            layout.minWidth(10);
-                            layout.maxWidth(10);
-                            layout.height(10);
-                        }),
-                        betterrailwaysystem$layout(label, layout -> {
-                            layout.flex(1);
-                            layout.height(12);
-                        })
-                ), layout -> {
-            layout.widthPercent(100);
-            layout.flexDirection(dev.vfyjxf.taffy.style.FlexDirection.ROW);
-            layout.alignItems(dev.vfyjxf.taffy.style.AlignItems.CENTER);
-            layout.gapAll(4);
-            layout.height(12);
-        });
-    }
-
-    private static Label betterrailwaysystem$label(String key, int fontSize, int height) {
-        return betterrailwaysystem$label(Text.translatable(key), fontSize, height);
-    }
-
-    private static Label betterrailwaysystem$label(Text text, int fontSize, int height) {
-        Label label = new Label();
-        label.setText(text);
-        label.textStyle(textStyle -> textStyle.fontSize(fontSize));
-        label.layout(layout -> layout.height(height));
-        return label;
-    }
-
     private static List<Text> betterrailwaysystem$tooltipFor(String cityName, List<String> lineIds, BlockPos pos, boolean current, boolean transfer) {
         List<Text> lines = new ArrayList<>();
         lines.add(Text.translatable("screen.betterrailwaysystem.station_city", cityName.isBlank() ? "-" : cityName));
@@ -852,9 +1049,11 @@ public final class LineMapScreen extends ModularUIScreen {
         return lines;
     }
 
-    private static <T extends UIElement> T betterrailwaysystem$layout(T element, Consumer<LayoutStyle> consumer) {
-        element.layout(consumer);
-        return element;
+    private static String betterrailwaysystem$formatLineLabel(OpenLineMapPayload.LineEntry line) {
+        if (line.direction() == null || line.direction().isBlank()) {
+            return line.lineId();
+        }
+        return line.lineId() + " (" + Text.translatable("screen.betterrailwaysystem.direction." + line.direction()).getString() + ")";
     }
 
     private record GraphLayout(
@@ -1023,7 +1222,14 @@ public final class LineMapScreen extends ModularUIScreen {
     private record LinePath(int color, List<String> stationKeys) {
     }
 
-    private record DragOffset(float startOffsetX, float startOffsetY) {
+    private record LegendItem(String label, int color, boolean header) {
+        private static LegendItem header(String label) {
+            return new LegendItem(label, 0, true);
+        }
+
+        private static LegendItem line(String label, int color) {
+            return new LegendItem(label, color, false);
+        }
     }
 
     private static final class NodeAccumulator {
@@ -1081,243 +1287,74 @@ public final class LineMapScreen extends ModularUIScreen {
         }
     }
 
-    private static final class GraphElement extends UIElement {
-        private static final float MIN_SCALE = 0.3f;
-        private static final float MAX_SCALE = 4.0f;
+    private final class LegendListWidget extends ElementListWidget<LegendEntry> {
+        private final int left;
+        private final int rowWidth;
 
-        private final GraphLayout graphLayout;
-        private float offsetX;
-        private float offsetY;
-        private float scale = 1.0f;
-        private boolean viewInitialized;
-        private String searchQuery = "";
-
-        private GraphElement(GraphLayout graphLayout) {
-            this.graphLayout = graphLayout;
-            setOverflowVisible(false);
-            style(style -> style.backgroundTexture(new ColorRectTexture(0xAA101010)));
-            addEventListener(UIEvents.MOUSE_DOWN, this::betterrailwaysystem$onMouseDown);
-            addEventListener(UIEvents.DRAG_SOURCE_UPDATE, this::betterrailwaysystem$onDragSourceUpdate);
-            addEventListener(UIEvents.MOUSE_WHEEL, this::betterrailwaysystem$onMouseWheel);
-        }
-
-        public void setSearchQuery(String searchQuery) {
-            String normalized = searchQuery == null ? "" : searchQuery.trim().toLowerCase(Locale.ROOT);
-            if (normalized.equals(this.searchQuery)) {
-                return;
-            }
-            this.searchQuery = normalized;
-            RenderedNode firstMatch = betterrailwaysystem$findFirstSearchMatch();
-            if (firstMatch != null) {
-                if (scale < 0.9f) {
-                    scale = 0.9f;
-                }
-                betterrailwaysystem$centerOn(firstMatch.x(), firstMatch.y());
+        private LegendListWidget(MinecraftClient client, int left, int top, int width, int height, List<LegendItem> items) {
+            super(client, width, height, top, 16);
+            this.left = left;
+            this.rowWidth = width - 10;
+            setX(left);
+            for (LegendItem item : items) {
+                addEntry(new LegendEntry(item));
             }
         }
 
         @Override
-        protected void onLayoutChanged() {
-            super.onLayoutChanged();
-            if (!viewInitialized && getContentWidth() > 1 && getContentHeight() > 1) {
-                betterrailwaysystem$fitToBounds(32);
-                viewInitialized = true;
-            } else if (viewInitialized) {
-                betterrailwaysystem$clampOffsets();
-            }
-        }
-
-        private void betterrailwaysystem$fitToBounds(float padding) {
-            float graphWidth = Math.max(1.0f, graphLayout.maxX() - graphLayout.minX());
-            float graphHeight = Math.max(1.0f, graphLayout.maxY() - graphLayout.minY());
-            float availableWidth = Math.max(1.0f, getContentWidth() - padding * 2.0f);
-            float availableHeight = Math.max(1.0f, getContentHeight() - padding * 2.0f);
-            scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, Math.min(availableWidth / graphWidth, availableHeight / graphHeight)));
-            float worldViewWidth = getContentWidth() / scale;
-            float worldViewHeight = getContentHeight() / scale;
-            offsetX = graphLayout.minX() - Math.max(0, (worldViewWidth - graphWidth) / 2.0f);
-            offsetY = graphLayout.minY() - Math.max(0, (worldViewHeight - graphHeight) / 2.0f);
-            betterrailwaysystem$clampOffsets();
-        }
-
-        private void betterrailwaysystem$centerOn(float x, float y) {
-            offsetX = x - getContentWidth() / (2.0f * scale);
-            offsetY = y - getContentHeight() / (2.0f * scale);
-            betterrailwaysystem$clampOffsets();
-        }
-
-        private void betterrailwaysystem$clampOffsets() {
-            float worldViewWidth = Math.max(1.0f, getContentWidth() / Math.max(1.0E-4f, scale));
-            float worldViewHeight = Math.max(1.0f, getContentHeight() / Math.max(1.0E-4f, scale));
-            float padding = 36.0f / Math.max(1.0E-4f, scale);
-            float minOffsetX = graphLayout.minX() - padding;
-            float minOffsetY = graphLayout.minY() - padding;
-            float maxOffsetX = graphLayout.maxX() - worldViewWidth + padding;
-            float maxOffsetY = graphLayout.maxY() - worldViewHeight + padding;
-            if (minOffsetX > maxOffsetX) {
-                offsetX = (graphLayout.minX() + graphLayout.maxX() - worldViewWidth) / 2.0f;
-            } else {
-                offsetX = Math.max(minOffsetX, Math.min(maxOffsetX, offsetX));
-            }
-            if (minOffsetY > maxOffsetY) {
-                offsetY = (graphLayout.minY() + graphLayout.maxY() - worldViewHeight) / 2.0f;
-            } else {
-                offsetY = Math.max(minOffsetY, Math.min(maxOffsetY, offsetY));
-            }
-        }
-
-        private RenderedNode betterrailwaysystem$findFirstSearchMatch() {
-            if (searchQuery.isBlank()) {
-                return null;
-            }
-            for (RenderedNode node : graphLayout.nodes()) {
-                if (node.stationName().toLowerCase(Locale.ROOT).contains(searchQuery)) {
-                    return node;
-                }
-            }
-            return null;
-        }
-
-        private boolean betterrailwaysystem$matchesSearch(RenderedNode node) {
-            return !searchQuery.isBlank() && node.stationName().toLowerCase(Locale.ROOT).contains(searchQuery);
-        }
-
-        private void betterrailwaysystem$onMouseDown(UIEvent event) {
-            if (!isSelfOrChildHover() || !isMouseOverContent(event.x, event.y)) {
-                return;
-            }
-            if (event.button == 0 || event.button == 2) {
-                startDrag(new DragOffset(offsetX, offsetY), null);
-                event.stopPropagation();
-            }
-        }
-
-        private void betterrailwaysystem$onDragSourceUpdate(UIEvent event) {
-            if (!(event.dragHandler.draggingObject instanceof DragOffset dragOffset)) {
-                return;
-            }
-            float scaled = Math.max(1.0E-4f, scale);
-            float localX = event.x - getContentX();
-            float localY = event.y - getContentY();
-            float startLocalX = event.dragStartX - getContentX();
-            float startLocalY = event.dragStartY - getContentY();
-            offsetX = dragOffset.startOffsetX() + (startLocalX - localX) / scaled;
-            offsetY = dragOffset.startOffsetY() + (startLocalY - localY) / scaled;
-            betterrailwaysystem$clampOffsets();
-        }
-
-        private void betterrailwaysystem$onMouseWheel(UIEvent event) {
-            if (!isSelfOrChildHover() || !isMouseOverContent(event.x, event.y)) {
-                return;
-            }
-            float newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, scale + event.deltaY * 0.1f));
-            if (Math.abs(newScale - scale) < 1.0E-4f) {
-                return;
-            }
-            float localX = event.x - getContentX();
-            float localY = event.y - getContentY();
-            offsetX += localX / scale - localX / newScale;
-            offsetY += localY / scale - localY / newScale;
-            scale = newScale;
-            betterrailwaysystem$clampOffsets();
-            event.stopPropagation();
+        protected void drawMenuListBackground(DrawContext context) {
         }
 
         @Override
-        public void drawBackgroundAdditional(GUIContext context) {
-            super.drawBackgroundAdditional(context);
-            int baseX = Math.round(getContentX());
-            int baseY = Math.round(getContentY());
-            int width = Math.round(getContentWidth());
-            int height = Math.round(getContentHeight());
-            context.graphics.fill(baseX, baseY, baseX + width, baseY + height, 0xAA111111);
-            context.graphics.enableScissor(baseX, baseY, baseX + width, baseY + height);
-            betterrailwaysystem$drawGrid(context, baseX, baseY, width, height);
-
-            List<Text> hoveredTooltip = null;
-
-            for (RenderedSegment segment : graphLayout.segments()) {
-                List<Vector2f> points = new ArrayList<>(segment.points().size());
-                for (Vector2f point : segment.points()) {
-                    points.add(new Vector2f(
-                            baseX + (point.x - offsetX) * scale,
-                            baseY + (point.y - offsetY) * scale
-                    ));
-                }
-                DrawerHelper.drawLines(
-                        context.graphics,
-                        points,
-                        0xFF000000 | segment.color(),
-                        0xFF000000 | segment.color(),
-                        betterrailwaysystem$getLineWidth(width, height)
-                );
-            }
-
-            for (RenderedCityLabel cityLabel : graphLayout.cityLabels()) {
-                int labelX = Math.round(baseX + (cityLabel.x() - offsetX) * scale);
-                int labelY = Math.round(baseY + (cityLabel.y() - offsetY) * scale);
-                int labelWidth = Math.round(cityLabel.width());
-                context.graphics.fill(labelX - labelWidth / 2 - 4, labelY - 3, labelX + labelWidth / 2 + 4, labelY + 10, 0xAA000000);
-                context.graphics.drawCenteredTextWithShadow(context.mc.textRenderer, cityLabel.cityName(), labelX, labelY, 0xFFEBCB8B);
-            }
-
-            for (RenderedNode node : graphLayout.nodes()) {
-                boolean searchMatch = betterrailwaysystem$matchesSearch(node);
-                int size = node.transfer() ? 10 : 8;
-                if (node.current()) {
-                    size = 12;
-                }
-                if (searchMatch) {
-                    size += 2;
-                }
-                int centerX = Math.round(baseX + (node.x() - offsetX) * scale);
-                int centerY = Math.round(baseY + (node.y() - offsetY) * scale);
-                int x = centerX - size / 2;
-                int y = centerY - size / 2;
-                int fillColor = node.transfer() ? 0xFFFFFFFF : 0xFF000000 | node.color();
-                int borderColor = searchMatch ? 0xFF6BD7FF : (node.current() ? 0xFFFFFF55 : 0xFF222222);
-                context.graphics.fill(x, y, x + size, y + size, fillColor);
-                context.graphics.drawBorder(x, y, size, size, borderColor);
-                context.graphics.drawTextWithShadow(
-                        context.mc.textRenderer,
-                        node.stationName(),
-                        x + size + 4,
-                        y - 1,
-                        searchMatch ? 0xFF6BD7FF : (node.current() ? 0xFFFFFF55 : 0xFFFFFFFF)
-                );
-                if (context.mouseX >= x && context.mouseX <= x + size && context.mouseY >= y && context.mouseY <= y + size) {
-                    hoveredTooltip = node.tooltipLines();
-                }
-            }
-
-            context.graphics.disableScissor();
-            if (hoveredTooltip != null && !hoveredTooltip.isEmpty()) {
-                context.graphics.drawTooltip(context.mc.textRenderer, hoveredTooltip, context.mouseX + 8, context.mouseY + 8);
-            }
+        protected void drawHeaderAndFooterSeparators(DrawContext context) {
         }
 
-        private void betterrailwaysystem$drawGrid(GUIContext context, int baseX, int baseY, int width, int height) {
-            float worldGrid = 64.0f;
-            float visibleWorldWidth = width / Math.max(1.0E-4f, scale);
-            float visibleWorldHeight = height / Math.max(1.0E-4f, scale);
-            float startWorldX = (float) Math.floor(offsetX / worldGrid) * worldGrid;
-            float startWorldY = (float) Math.floor(offsetY / worldGrid) * worldGrid;
-            float endWorldX = offsetX + visibleWorldWidth;
-            float endWorldY = offsetY + visibleWorldHeight;
-
-            for (float worldX = startWorldX; worldX <= endWorldX + worldGrid; worldX += worldGrid) {
-                int drawX = Math.round(baseX + (worldX - offsetX) * scale);
-                context.graphics.fill(drawX, baseY, drawX + 1, baseY + height, 0x22333333);
-            }
-            for (float worldY = startWorldY; worldY <= endWorldY + worldGrid; worldY += worldGrid) {
-                int drawY = Math.round(baseY + (worldY - offsetY) * scale);
-                context.graphics.fill(baseX, drawY, baseX + width, drawY + 1, 0x22333333);
-            }
+        @Override
+        protected void renderDecorations(DrawContext context, int mouseX, int mouseY) {
         }
 
-        private float betterrailwaysystem$getLineWidth(int width, int height) {
-            float minSize = Math.max(1.0f, Math.min(width, height));
-            return Math.max(1.4f, Math.min(4.6f, minSize / 170.0f));
+        @Override
+        public int getRowWidth() {
+            return rowWidth;
+        }
+
+        @Override
+        protected int getScrollbarX() {
+            return left + rowWidth + 4;
+        }
+
+        @Override
+        public int getRowLeft() {
+            return left + 2;
+        }
+    }
+
+    private final class LegendEntry extends ElementListWidget.Entry<LegendEntry> {
+        private final LegendItem item;
+
+        private LegendEntry(LegendItem item) {
+            this.item = item;
+        }
+
+        @Override
+        public List<? extends Element> children() {
+            return List.of();
+        }
+
+        @Override
+        public List<? extends Selectable> selectableChildren() {
+            return List.of();
+        }
+
+        @Override
+        public void render(DrawContext context, int index, int y, int x, int entryWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta) {
+            if (item.header()) {
+                context.drawTextWithShadow(textRenderer, item.label(), x, y + 4, 0xFFEBCB8B);
+                return;
+            }
+            context.fill(x, y + 3, x + 10, y + 13, 0xFF000000 | item.color());
+            context.drawBorder(x, y + 3, 10, 10, 0xFF222222);
+            context.drawTextWithShadow(textRenderer, item.label(), x + 14, y + 4, 0xFFFFFFFF);
         }
     }
 }

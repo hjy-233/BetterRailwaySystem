@@ -1,18 +1,10 @@
 package org.dcstudio.renderer;
 
-import com.lowdragmc.lowdraglib2.gui.holder.ModularUIScreen;
-import com.lowdragmc.lowdraglib2.gui.texture.ColorRectTexture;
-import com.lowdragmc.lowdraglib2.gui.ui.ModularUI;
-import com.lowdragmc.lowdraglib2.gui.ui.UI;
-import com.lowdragmc.lowdraglib2.gui.ui.UIElement;
-import com.lowdragmc.lowdraglib2.gui.ui.elements.Button;
-import com.lowdragmc.lowdraglib2.gui.ui.elements.Label;
-import com.lowdragmc.lowdraglib2.gui.ui.elements.ScrollerView;
-import com.lowdragmc.lowdraglib2.gui.ui.rendering.GUIContext;
-import com.lowdragmc.lowdraglib2.gui.ui.style.LayoutStyle;
-import com.lowdragmc.lowdraglib2.gui.ui.styletemplate.Sprites;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
+import net.minecraft.client.gui.widget.AlwaysSelectedEntryListWidget;
+import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.texture.NativeImage;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
@@ -25,345 +17,330 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.Consumer;
 
-// 使用 LDLib2 浏览、上传、选择 balise 图片和音频素材。
-public final class BaliseAssetLibraryScreen extends ModularUIScreen {
-    public BaliseAssetLibraryScreen(
-            Screen parent,
-            BaliseAssetLibrary.AssetType assetType,
-            String selectedIdentifier,
-            Consumer<String> applySelection
-    ) {
-        super(betterrailwaysystem$createUi(parent, assetType, selectedIdentifier, applySelection), assetType.dialogTitle());
+// 使用原生 Screen 浏览、上传、选择 balise 图片和音频素材。
+public final class BaliseAssetLibraryScreen extends Screen {
+    private static final int PANEL_WIDTH = 430;
+    private static final int PANEL_HEIGHT = 290;
+
+    private final Screen parent;
+    private final BaliseAssetLibrary.AssetType assetType;
+    private final Consumer<String> applySelection;
+    private final List<BaliseAssetLibrary.LibraryEntry> entries = new ArrayList<>();
+    private String selectedIdentifier;
+    private AssetListWidget listWidget;
+    private ButtonWidget useButton;
+    private ButtonWidget clearButton;
+    private Text statusText = Text.empty();
+    private int previewImageWidth;
+    private int previewImageHeight;
+    private int panelX;
+    private int panelY;
+    private int panelWidth;
+    private int panelHeight;
+
+    public BaliseAssetLibraryScreen(Screen parent, BaliseAssetLibrary.AssetType assetType, String selectedIdentifier, Consumer<String> applySelection) {
+        super(assetType.dialogTitle());
+        this.parent = parent;
+        this.assetType = assetType;
+        this.selectedIdentifier = selectedIdentifier == null ? "" : selectedIdentifier;
+        this.applySelection = applySelection;
     }
 
-    private static ModularUI betterrailwaysystem$createUi(
-            Screen parent,
-            BaliseAssetLibrary.AssetType assetType,
-            String selectedIdentifier,
-            Consumer<String> applySelection
-    ) {
-        LibraryUiState state = new LibraryUiState(parent, assetType, selectedIdentifier, applySelection);
-        return new ModularUI(UI.of(state.buildRoot()));
+    @Override
+    protected void init() {
+        super.init();
+        betterrailwaysystem$layoutBounds();
+        int footerY = panelY + panelHeight - 26;
+        int listX = panelX + 10;
+        int listY = panelY + 54;
+        int listWidth = 170;
+        int listHeight = footerY - listY - 28;
+
+        reloadEntries();
+
+        listWidget = new AssetListWidget(client, listX, listY, listWidth, listHeight);
+        addDrawableChild(listWidget);
+
+        addDrawableChild(ButtonWidget.builder(Text.translatable("screen.betterrailwaysystem.open_folder"), button -> betterrailwaysystem$openFolder())
+                .dimensions(listX, footerY, 82, 20)
+                .build());
+        addDrawableChild(ButtonWidget.builder(Text.translatable("screen.betterrailwaysystem.refresh_assets"), button -> betterrailwaysystem$refreshAssets())
+                .dimensions(listX + 88, footerY, 82, 20)
+                .build());
+        useButton = addDrawableChild(ButtonWidget.builder(Text.translatable("screen.betterrailwaysystem.use_selected"), button -> useSelected())
+                .dimensions(panelX + panelWidth - 274, footerY, 82, 20)
+                .build());
+        clearButton = addDrawableChild(ButtonWidget.builder(Text.translatable("screen.betterrailwaysystem.clear_selected"), button -> clearSelection())
+                .dimensions(panelX + panelWidth - 186, footerY, 82, 20)
+                .build());
+        addDrawableChild(ButtonWidget.builder(Text.translatable("gui.back"), button -> close())
+                .dimensions(panelX + panelWidth - 98, footerY, 82, 20)
+                .build());
+
+        betterrailwaysystem$refreshButtons();
     }
 
-    private static <T extends UIElement> T betterrailwaysystem$layout(T element, Consumer<LayoutStyle> consumer) {
-        element.layout(consumer);
-        return element;
+    @Override
+    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
+        super.renderBackground(context, mouseX, mouseY, delta);
+        int previewX = panelX + 190;
+        int previewY = panelY + 54;
+        int previewWidth = panelWidth - 202;
+        int previewHeight = panelHeight - 102;
+
+        context.fill(panelX, panelY, panelX + panelWidth, panelY + panelHeight, 0xE0101010);
+        context.drawBorder(panelX, panelY, panelWidth, panelHeight, 0xFF8B8B8B);
+        context.drawCenteredTextWithShadow(textRenderer, title, width / 2, panelY + 12, 0xFFFFFF);
+        context.drawTextWithShadow(textRenderer, Text.translatable("screen.betterrailwaysystem.selected_asset"), panelX + 10, panelY + 32, 0xD0D0D0);
+        context.drawTextWithShadow(textRenderer, selectedIdentifier.isBlank() ? "-" : selectedIdentifier, panelX + 96, panelY + 32, 0xFFFFFF);
+        context.drawTextWithShadow(textRenderer, statusText, panelX + 10, panelY + panelHeight - 44, 0xAAAAAA);
+
+        context.fill(previewX, previewY, previewX + previewWidth, previewY + previewHeight, 0x66000000);
+        context.drawBorder(previewX, previewY, previewWidth, previewHeight, 0xFF5A5A5A);
+        betterrailwaysystem$renderPreview(context, previewX, previewY, previewWidth, previewHeight);
+
+        super.render(context, mouseX, mouseY, delta);
     }
 
-    private static final class LibraryUiState {
-        private final Screen parent;
-        private final BaliseAssetLibrary.AssetType assetType;
-        private final Consumer<String> applySelection;
-        private final List<BaliseAssetLibrary.LibraryEntry> entries = new ArrayList<>();
-        private final ScrollerView scrollerView = betterrailwaysystem$layout(new ScrollerView(), layout -> {
-            layout.flex(1);
-            layout.minHeight(0);
-            layout.widthPercent(100);
-        });
-        private final Label selectedValueLabel = betterrailwaysystem$layout(new Label(), layout -> layout.height(18));
-        private final Label statusLabel = betterrailwaysystem$layout(new Label(), layout -> layout.height(18));
-        private final AssetPreviewElement previewElement;
-        private final Button useButton = betterrailwaysystem$layout(new Button()
-                .setText(Text.translatable("screen.betterrailwaysystem.use_selected")), layout -> {
-            layout.height(20);
-            layout.flex(1);
-        });
-        private String selectedIdentifier;
-        private int selectedIndex = -1;
-        private int previewImageWidth;
-        private int previewImageHeight;
+    @Override
+    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta) {
+    }
 
-        private LibraryUiState(
-                Screen parent,
-                BaliseAssetLibrary.AssetType assetType,
-                String selectedIdentifier,
-                Consumer<String> applySelection
-        ) {
-            this.parent = parent;
-            this.assetType = assetType;
-            this.selectedIdentifier = selectedIdentifier == null ? "" : selectedIdentifier;
-            this.applySelection = applySelection;
-            this.previewElement = new AssetPreviewElement(this);
-            this.selectedValueLabel.setText("");
-            this.statusLabel.setText("");
-            reloadEntries();
+    @Override
+    public void close() {
+        if (client != null) {
+            client.setScreen(parent);
         }
+    }
 
-        private UIElement buildRoot() {
-            useButton.setOnClick(event -> useSelected());
+    private void reloadEntries() {
+        entries.clear();
+        entries.addAll(BaliseAssetLibrary.list(assetType));
+        previewImageWidth = 0;
+        previewImageHeight = 0;
+        betterrailwaysystem$loadPreviewMetadata();
+    }
 
-            Button uploadButton = betterrailwaysystem$layout(new Button()
-                    .setText(Text.translatable("screen.betterrailwaysystem.upload"))
-                    .setOnClick(event -> importAsset()), layout -> {
-                layout.height(20);
-                layout.flex(1);
-            });
-            Button clearButton = betterrailwaysystem$layout(new Button()
-                    .setText(Text.translatable("screen.betterrailwaysystem.clear_selected"))
-                    .setOnClick(event -> clearSelection()), layout -> {
-                layout.height(20);
-                layout.flex(1);
-            });
-            Button backButton = betterrailwaysystem$layout(new Button()
-                    .setText(Text.translatable("gui.back"))
-                    .setOnClick(event -> MinecraftClient.getInstance().setScreen(parent)), layout -> {
-                layout.height(20);
-                layout.flex(1);
-            });
-
-            UIElement body = new UIElement()
-                    .layout(layout -> {
-                        layout.widthPercent(100);
-                        layout.flex(1);
-                        layout.minHeight(0);
-                        layout.flexDirection(dev.vfyjxf.taffy.style.FlexDirection.ROW);
-                        layout.gapAll(8);
-                    })
-                    .addChildren(
-                            betterrailwaysystem$layout(new UIElement()
-                                    .style(style -> style.backgroundTexture(Sprites.BORDER))
-                                    .addChild(scrollerView), layout -> {
-                                layout.flex(1);
-                                layout.minWidth(150);
-                                layout.minHeight(0);
-                                layout.paddingAll(6);
-                            }),
-                            betterrailwaysystem$layout(new UIElement()
-                                    .style(style -> style.backgroundTexture(Sprites.BORDER))
-                                    .addChild(previewElement), layout -> {
-                                layout.widthPercent(38);
-                                layout.minWidth(110);
-                                layout.maxWidth(160);
-                                layout.minHeight(0);
-                                layout.paddingAll(6);
-                            })
-                    );
-
-            UIElement footer = new UIElement()
-                    .layout(layout -> {
-                        layout.widthPercent(100);
-                        layout.flexDirection(dev.vfyjxf.taffy.style.FlexDirection.ROW);
-                        layout.gapAll(8);
-                    })
-                    .addChildren(uploadButton, useButton, clearButton, backButton);
-
-            UIElement panel = new UIElement()
-                    .layout(layout -> {
-                        layout.widthPercent(72);
-                        layout.maxWidth(440);
-                        layout.minWidth(280);
-                        layout.heightPercent(76);
-                        layout.maxHeight(320);
-                        layout.minHeight(220);
-                        layout.paddingAll(8);
-                        layout.gapAll(8);
-                        layout.flexDirection(dev.vfyjxf.taffy.style.FlexDirection.COLUMN);
-                    })
-                    .style(style -> style.backgroundTexture(Sprites.BORDER))
-                    .addChildren(
-                            betterrailwaysystem$layout(new Label()
-                                    .setText(assetType.dialogTitle())
-                                    .textStyle(textStyle -> textStyle.fontSize(18)), layout -> layout.height(24)),
-                            betterrailwaysystem$layout(new Label()
-                                    .setText(Text.translatable("screen.betterrailwaysystem.selected_asset")), layout -> layout.height(16)),
-                            selectedValueLabel,
-                            body,
-                            statusLabel,
-                            footer
-                    );
-
-            UIElement root = new UIElement()
-                    .layout(layout -> {
-                        layout.widthPercent(100);
-                        layout.heightPercent(100);
-                        layout.justifyContent(dev.vfyjxf.taffy.style.AlignContent.CENTER);
-                        layout.alignItems(dev.vfyjxf.taffy.style.AlignItems.CENTER);
-                    })
-                    .addChild(panel);
-
-            refreshList();
-            refreshStatus();
-            return root;
+    private void selectIdentifier(String identifier) {
+        selectedIdentifier = identifier == null ? "" : identifier;
+        if (assetType == BaliseAssetLibrary.AssetType.SOUND && !selectedIdentifier.isBlank()) {
+            BaliseAssetLibrary.previewSound(selectedIdentifier);
         }
+        betterrailwaysystem$loadPreviewMetadata();
+        betterrailwaysystem$refreshButtons();
+    }
 
-        private void reloadEntries() {
-            entries.clear();
-            entries.addAll(BaliseAssetLibrary.list(assetType));
-            selectedIndex = -1;
-            for (int index = 0; index < entries.size(); index++) {
-                if (entries.get(index).identifier().equals(selectedIdentifier)) {
-                    selectedIndex = index;
-                    break;
-                }
-            }
-            updatePreviewMetadata();
+    private void betterrailwaysystem$openFolder() {
+        if (BaliseAssetLibrary.openDirectory(assetType)) {
+            statusText = Text.translatable("screen.betterrailwaysystem.folder_opened");
+        } else {
+            statusText = Text.translatable("screen.betterrailwaysystem.folder_open_failed");
         }
+    }
 
-        private void refreshList() {
-            scrollerView.clearAllScrollViewChildren();
-            for (int index = 0; index < entries.size(); index++) {
-                final int entryIndex = index;
-                BaliseAssetLibrary.LibraryEntry entry = entries.get(index);
-                String prefix = entryIndex == selectedIndex ? "> " : "";
-                Button entryButton = betterrailwaysystem$layout(new Button()
-                        .setText(Text.literal(prefix + entry.displayName()))
-                        .setOnClick(event -> selectEntry(entryIndex)), layout -> {
-                    layout.widthPercent(100);
-                    layout.height(20);
-                });
-                if (entryIndex == selectedIndex) {
-                    entryButton.style(style -> style.backgroundTexture(new ColorRectTexture(0xFF4C7A3D)));
-                }
-                scrollerView.addScrollViewChild(entryButton);
-            }
-            if (entries.isEmpty()) {
-                scrollerView.addScrollViewChild(betterrailwaysystem$layout(new Label()
-                        .setText(Text.translatable("screen.betterrailwaysystem.no_assets")), layout -> layout.height(20)));
-            }
-            useButton.setActive(selectedIndex >= 0 && selectedIndex < entries.size());
+    private void betterrailwaysystem$refreshAssets() {
+        if (client == null) {
+            statusText = Text.translatable("screen.betterrailwaysystem.refresh_failed");
+            return;
         }
-
-        private void selectEntry(int entryIndex) {
-            if (entryIndex < 0 || entryIndex >= entries.size()) {
-                return;
-            }
-            selectedIndex = entryIndex;
-            selectedIdentifier = entries.get(entryIndex).identifier();
-            if (assetType == BaliseAssetLibrary.AssetType.SOUND) {
-                BaliseAssetLibrary.previewSound(selectedIdentifier);
-            }
-            updatePreviewMetadata();
-            refreshStatus();
-            refreshList();
+        boolean reloaded = BaliseAssetLibrary.reloadLibrary(client, assetType);
+        if (!reloaded) {
+            statusText = Text.translatable("screen.betterrailwaysystem.refresh_failed");
+            return;
         }
-
-        private void refreshStatus() {
-            selectedValueLabel.setText(selectedIdentifier.isBlank() ? "-" : selectedIdentifier);
+        reloadEntries();
+        if (entries.stream().noneMatch(entry -> entry.identifier().equals(selectedIdentifier))) {
+            selectedIdentifier = "";
         }
+        listWidget.reload();
+        betterrailwaysystem$refreshButtons();
+        statusText = Text.translatable("screen.betterrailwaysystem.refresh_done");
+    }
 
-        private void importAsset() {
-            Optional<BaliseAssetLibrary.LibraryEntry> imported = BaliseAssetLibrary.importFromDialog(MinecraftClient.getInstance(), assetType);
-            if (imported.isEmpty()) {
-                statusLabel.setText(Text.translatable("screen.betterrailwaysystem.upload_skipped"));
-                return;
-            }
-            selectedIdentifier = imported.get().identifier();
-            statusLabel.setText(Text.translatable("screen.betterrailwaysystem.upload_reloading"));
-            reloadEntries();
-            if (assetType == BaliseAssetLibrary.AssetType.SOUND) {
-                BaliseAssetLibrary.previewSound(selectedIdentifier);
-            }
-            refreshStatus();
-            refreshList();
+    private void useSelected() {
+        if (selectedIdentifier.isBlank()) {
+            return;
         }
+        applySelection.accept(selectedIdentifier);
+        close();
+    }
 
-        private void useSelected() {
-            if (selectedIndex < 0 || selectedIndex >= entries.size()) {
-                return;
-            }
-            applySelection.accept(entries.get(selectedIndex).identifier());
-            MinecraftClient.getInstance().setScreen(parent);
+    private void clearSelection() {
+        applySelection.accept("");
+        close();
+    }
+
+    private void betterrailwaysystem$refreshButtons() {
+        boolean hasSelection = !selectedIdentifier.isBlank();
+        if (useButton != null) {
+            useButton.active = hasSelection;
         }
-
-        private void clearSelection() {
-            applySelection.accept("");
-            MinecraftClient.getInstance().setScreen(parent);
+        if (clearButton != null) {
+            clearButton.active = true;
         }
+    }
 
-        private void updatePreviewMetadata() {
+    private void betterrailwaysystem$layoutBounds() {
+        panelWidth = Math.max(320, Math.min(PANEL_WIDTH, width - 40));
+        panelHeight = Math.max(220, Math.min(PANEL_HEIGHT, height - 40));
+        panelX = (width - panelWidth) / 2;
+        panelY = (height - panelHeight) / 2;
+    }
+
+    private void betterrailwaysystem$loadPreviewMetadata() {
+        previewImageWidth = 0;
+        previewImageHeight = 0;
+        if (assetType != BaliseAssetLibrary.AssetType.IMAGE || selectedIdentifier.isBlank()) {
+            return;
+        }
+        Identifier identifier = Identifier.tryParse(selectedIdentifier);
+        if (identifier == null || client == null) {
+            return;
+        }
+        Optional<net.minecraft.resource.Resource> resource = client.getResourceManager().getResource(identifier);
+        if (resource.isEmpty()) {
+            return;
+        }
+        try (InputStream inputStream = resource.get().getInputStream(); NativeImage image = NativeImage.read(inputStream)) {
+            previewImageWidth = image.getWidth();
+            previewImageHeight = image.getHeight();
+        } catch (IOException ignored) {
             previewImageWidth = 0;
             previewImageHeight = 0;
-            if (assetType != BaliseAssetLibrary.AssetType.IMAGE || selectedIndex < 0 || selectedIndex >= entries.size()) {
-                return;
-            }
-            Identifier identifier = Identifier.tryParse(entries.get(selectedIndex).identifier());
-            if (identifier == null) {
-                return;
-            }
-            Optional<net.minecraft.resource.Resource> resource = MinecraftClient.getInstance().getResourceManager().getResource(identifier);
-            if (resource.isEmpty()) {
-                return;
-            }
-            try (InputStream inputStream = resource.get().getInputStream(); NativeImage image = NativeImage.read(inputStream)) {
-                previewImageWidth = image.getWidth();
-                previewImageHeight = image.getHeight();
-            } catch (IOException ignored) {
-                previewImageWidth = 0;
-                previewImageHeight = 0;
-            }
         }
     }
 
-    private static final class AssetPreviewElement extends UIElement {
-        private final LibraryUiState state;
+    private void betterrailwaysystem$renderPreview(DrawContext context, int x, int y, int width, int height) {
+        if (selectedIdentifier.isBlank()) {
+            context.drawCenteredTextWithShadow(textRenderer, Text.translatable("screen.betterrailwaysystem.no_assets"), x + width / 2, y + height / 2 - 4, 0xAAAAAA);
+            return;
+        }
 
-        private AssetPreviewElement(LibraryUiState state) {
-            this.state = state;
-            style(style -> style.backgroundTexture(Sprites.BORDER));
+        if (assetType == BaliseAssetLibrary.AssetType.SOUND) {
+            betterrailwaysystem$drawWrappedCentered(context, selectedIdentifier, x + 8, y + 8, width - 16, height - 16, 0xFFFFFF);
+            return;
+        }
+
+        Identifier identifier = Identifier.tryParse(selectedIdentifier);
+        if (identifier == null || previewImageWidth <= 0 || previewImageHeight <= 0) {
+            betterrailwaysystem$drawWrappedCentered(context, selectedIdentifier, x + 8, y + 8, width - 16, height - 16, 0xFFFFFF);
+            return;
+        }
+
+        float scale = Math.min((float) (width - 8) / previewImageWidth, (float) (height - 8) / previewImageHeight);
+        scale = Math.max(scale, 0.01F);
+        int drawWidth = Math.max(1, Math.round(previewImageWidth * scale));
+        int drawHeight = Math.max(1, Math.round(previewImageHeight * scale));
+        int drawX = x + (width - drawWidth) / 2;
+        int drawY = y + (height - drawHeight) / 2;
+        context.drawTexture(identifier, drawX, drawY, drawWidth, drawHeight, 0.0F, 0.0F, previewImageWidth, previewImageHeight, previewImageWidth, previewImageHeight);
+    }
+
+    private void betterrailwaysystem$drawWrappedCentered(DrawContext context, String raw, int x, int y, int width, int height, int color) {
+        List<String> lines = betterrailwaysystem$wrapPlainText(raw, Math.max(20, width));
+        int totalHeight = lines.size() * 10;
+        int drawY = y + Math.max(0, (height - totalHeight) / 2);
+        for (String line : lines) {
+            context.drawCenteredTextWithShadow(textRenderer, Text.literal(line), x + width / 2, drawY, color);
+            drawY += 10;
+        }
+    }
+
+    private List<String> betterrailwaysystem$wrapPlainText(String raw, int width) {
+        List<String> lines = new ArrayList<>();
+        if (raw.isBlank()) {
+            lines.add("");
+            return lines;
+        }
+        String remaining = raw;
+        while (!remaining.isEmpty()) {
+            int bestLength = remaining.length();
+            while (bestLength > 1 && textRenderer.getWidth(remaining.substring(0, bestLength)) > width) {
+                bestLength--;
+            }
+            lines.add(remaining.substring(0, bestLength));
+            remaining = remaining.substring(bestLength);
+        }
+        return lines;
+    }
+
+    private final class AssetListWidget extends AlwaysSelectedEntryListWidget<AssetEntry> {
+        private final int left;
+
+        private AssetListWidget(MinecraftClient client, int left, int top, int width, int height) {
+            super(client, width, height, top, 24);
+            this.left = left;
+            setX(left);
+            reload();
         }
 
         @Override
-        public void drawBackgroundAdditional(GUIContext context) {
-            super.drawBackgroundAdditional(context);
-
-            int x = Math.round(getContentX());
-            int y = Math.round(getContentY());
-            int width = Math.max(1, Math.round(getContentWidth()));
-            int height = Math.max(1, Math.round(getContentHeight()));
-
-            context.graphics.fill(x, y, x + width, y + height, 0x66000000);
-
-            if (state.selectedIdentifier.isBlank()) {
-                betterrailwaysystem$drawCenteredText(context, Text.translatable("screen.betterrailwaysystem.no_assets"), x, y, width, height, 0xFFAAAAAA);
-                return;
-            }
-
-            if (state.assetType == BaliseAssetLibrary.AssetType.SOUND) {
-                betterrailwaysystem$drawCenteredText(context, Text.literal(state.selectedIdentifier), x + 4, y, width - 8, height, 0xFFFFFFFF);
-                return;
-            }
-
-            Identifier identifier = Identifier.tryParse(state.selectedIdentifier);
-            if (identifier == null || state.previewImageWidth <= 0 || state.previewImageHeight <= 0) {
-                betterrailwaysystem$drawCenteredText(context, Text.literal(state.selectedIdentifier), x + 4, y, width - 8, height, 0xFFFFFFFF);
-                return;
-            }
-
-            float scale = Math.min((float) (width - 8) / state.previewImageWidth, (float) (height - 8) / state.previewImageHeight);
-            scale = Math.max(scale, 0.01F);
-            int drawWidth = Math.max(1, Math.round(state.previewImageWidth * scale));
-            int drawHeight = Math.max(1, Math.round(state.previewImageHeight * scale));
-            int drawX = x + (width - drawWidth) / 2;
-            int drawY = y + (height - drawHeight) / 2;
-
-            context.graphics.drawTexture(
-                    identifier,
-                    drawX,
-                    drawY,
-                    drawWidth,
-                    drawHeight,
-                    0.0F,
-                    0.0F,
-                    state.previewImageWidth,
-                    state.previewImageHeight,
-                    state.previewImageWidth,
-                    state.previewImageHeight
-            );
+        public int getRowWidth() {
+            return width - 10;
         }
 
-        private void betterrailwaysystem$drawCenteredText(GUIContext context, Text text, int x, int y, int width, int height, int color) {
-            int textWidth = context.mc.textRenderer.getWidth(text);
-            int drawX = x + Math.max(0, (width - textWidth) / 2);
-            int drawY = y + Math.max(0, (height - 8) / 2);
-            if (textWidth > width) {
-                String raw = text.getString();
-                int maxChars = Math.max(4, width / 6);
-                String clipped = raw.length() > maxChars ? raw.substring(0, Math.min(raw.length(), maxChars - 3)) + "..." : raw;
-                context.graphics.drawTextWithShadow(context.mc.textRenderer, clipped, x + 4, drawY, color);
+        @Override
+        protected int getScrollbarX() {
+            return left + width - 6;
+        }
+
+        @Override
+        public int getRowLeft() {
+            return left;
+        }
+
+        @Override
+        protected void drawMenuListBackground(DrawContext context) {
+        }
+
+        @Override
+        protected void drawHeaderAndFooterSeparators(DrawContext context) {
+        }
+
+        @Override
+        protected void renderDecorations(DrawContext context, int mouseX, int mouseY) {
+        }
+
+        private void reload() {
+            clearEntries();
+            if (entries.isEmpty()) {
+                addEntry(new AssetEntry(null));
                 return;
             }
-            context.graphics.drawTextWithShadow(context.mc.textRenderer, text, drawX, drawY, color);
+            for (BaliseAssetLibrary.LibraryEntry entry : entries) {
+                addEntry(new AssetEntry(entry));
+            }
+        }
+    }
+
+    private final class AssetEntry extends AlwaysSelectedEntryListWidget.Entry<AssetEntry> {
+        private final BaliseAssetLibrary.LibraryEntry entry;
+
+        private AssetEntry(BaliseAssetLibrary.LibraryEntry entry) {
+            this.entry = entry;
+        }
+
+        @Override
+        public void render(DrawContext context, int index, int y, int x, int entryWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta) {
+            int color = entry == null ? 0xAAAAAA : (entry.identifier().equals(selectedIdentifier) ? 0xFF4C7A3D : 0xFF2C2C2C);
+            context.fill(x, y + 2, x + entryWidth - 4, y + entryHeight - 2, color);
+            context.drawBorder(x, y + 2, entryWidth - 4, entryHeight - 4, 0xFF6A6A6A);
+            Text label = entry == null ? Text.translatable("screen.betterrailwaysystem.no_assets") : Text.literal(entry.displayName());
+            context.drawTextWithShadow(textRenderer, label, x + 6, y + 9, 0xFFFFFF);
+        }
+
+        @Override
+        public boolean mouseClicked(double mouseX, double mouseY, int button) {
+            if (entry == null) {
+                return false;
+            }
+            selectIdentifier(entry.identifier());
+            return true;
+        }
+
+        @Override
+        public Text getNarration() {
+            return entry == null ? Text.translatable("screen.betterrailwaysystem.no_assets") : Text.literal(entry.displayName());
         }
     }
 }

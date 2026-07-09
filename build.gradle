@@ -54,17 +54,6 @@ repositories {
         url = "https://maven.terraformersmc.com/releases/"
     }
 
-    // LDLib / LowDragMC 可能需要
-    maven {
-        name = "FirstDark"
-        url = "https://maven.firstdark.dev/releases"
-    }
-
-    maven {
-        name = "FirstDark Snapshots"
-        url = "https://maven.firstdark.dev/snapshots"
-    }
-
     // 国内镜像，兜底用
     maven {
         name = "Aliyun Public"
@@ -90,13 +79,6 @@ dependencies {
     modImplementation("me.shedaniel.cloth:cloth-config-fabric:15.0.140") {
         exclude(group: "net.fabricmc.fabric-api")
     }
-    modImplementation "maven.modrinth:ldlib-fabric:2.5"
-    modImplementation "maven.modrinth:architectury-api:13.0.8+fabric"
-    modImplementation "maven.modrinth:fabric-language-kotlin:1.13.12+kotlin.2.4.0"
-    implementation "org.appliedenergistics.yoga:yoga:1.0.0"
-    implementation "dev.vfyjxf:taffy:1.1.4"
-    include "org.appliedenergistics.yoga:yoga:1.0.0"
-    include "dev.vfyjxf:taffy:1.1.4"
     modCompileOnly "com.terraformersmc:modmenu:11.0.4"
     modRuntimeOnly "com.terraformersmc:modmenu:11.0.4"
 }

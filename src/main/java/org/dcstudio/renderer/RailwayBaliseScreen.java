@@ -1,23 +1,13 @@
 package org.dcstudio.renderer;
 
-import com.lowdragmc.lowdraglib2.gui.holder.ModularUIScreen;
-import com.lowdragmc.lowdraglib2.gui.ui.ModularUI;
-import com.lowdragmc.lowdraglib2.gui.ui.UI;
-import com.lowdragmc.lowdraglib2.gui.ui.UIElement;
-import com.lowdragmc.lowdraglib2.gui.ui.elements.Button;
-import com.lowdragmc.lowdraglib2.gui.ui.elements.Label;
-import com.lowdragmc.lowdraglib2.gui.ui.elements.ScrollerView;
-import com.lowdragmc.lowdraglib2.gui.ui.elements.Selector;
-import com.lowdragmc.lowdraglib2.gui.ui.elements.TextField;
-import com.lowdragmc.lowdraglib2.gui.ui.elements.Toggle;
-import com.lowdragmc.lowdraglib2.gui.ui.style.LayoutStyle;
-import com.lowdragmc.lowdraglib2.gui.ui.styletemplate.Sprites;
-import com.lowdragmc.lowdraglib2.gui.ui.utils.UIElementProvider;
-import dev.vfyjxf.taffy.style.AlignContent;
-import dev.vfyjxf.taffy.style.AlignItems;
-import dev.vfyjxf.taffy.style.FlexDirection;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.gui.screen.Screen;
+import net.minecraft.client.gui.widget.ButtonWidget;
+import net.minecraft.client.gui.widget.CheckboxWidget;
+import net.minecraft.client.gui.widget.CyclingButtonWidget;
+import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.text.Text;
 import net.minecraft.util.math.MathHelper;
 import org.dcstudio.client.asset.BaliseAssetLibrary;
@@ -25,284 +15,210 @@ import org.dcstudio.minecart.BaliseMode;
 import org.dcstudio.network.OpenBaliseEditorPayload;
 import org.dcstudio.network.SaveBalisePayload;
 
-import java.util.Arrays;
-import java.util.function.Consumer;
+import java.util.ArrayList;
+import java.util.List;
 
-// 使用 LDLib2 编辑铁路信标的多类型事件配置。
-public final class RailwayBaliseScreen extends ModularUIScreen {
+// 使用原生 Screen 编辑铁路信标的多类型事件配置。
+public final class RailwayBaliseScreen extends Screen {
+    private static final int PANEL_WIDTH = 430;
+    private static final int PANEL_HEIGHT = 336;
+    private static final int LABEL_WIDTH = 118;
+    private static final int LIBRARY_BUTTON_WIDTH = 76;
+
+    private final OpenBaliseEditorPayload payload;
+    private NativeFormWidgets.FormListWidget formList;
+    private CyclingButtonWidget<BaliseMode> modeButton;
+    private TextFieldWidget titleField;
+    private TextFieldWidget subtitleField;
+    private TextFieldWidget currentStationField;
+    private TextFieldWidget nextStationField;
+    private TextFieldWidget soundIdField;
+    private TextFieldWidget imageIdField;
+    private TextFieldWidget durationField;
+    private TextFieldWidget speedLimitField;
+    private CheckboxWidget keepImageCheckbox;
+    private CheckboxWidget bossBarCheckbox;
+    private int panelWidth;
+    private int panelHeight;
+    private int panelX;
+    private int panelY;
+
     public RailwayBaliseScreen(OpenBaliseEditorPayload payload) {
-        super(betterrailwaysystem$createUi(payload), Text.translatable("screen.betterrailwaysystem.railway_balise"));
+        super(Text.translatable("screen.betterrailwaysystem.railway_balise"));
+        this.payload = payload;
     }
 
-    private static ModularUI betterrailwaysystem$createUi(OpenBaliseEditorPayload payload) {
-        Selector<BaliseMode> modeSelector = betterrailwaysystem$layout(new Selector<BaliseMode>()
-                .setCandidates(Arrays.stream(BaliseMode.values()).toList())
-                .setCandidateUIProvider(UIElementProvider.text(value -> Text.translatable("screen.betterrailwaysystem.mode." + (value == null ? BaliseMode.ANNOUNCEMENT.serializedName() : value.serializedName()))))
-                .setSelected(payload.parsedMode(), false), layout -> {
-            layout.height(20);
-            layout.flex(1);
-        });
-        TextField titleField = betterrailwaysystem$textField(payload.titleText());
-        TextField subtitleField = betterrailwaysystem$textField(payload.subtitleText());
-        TextField currentStationField = betterrailwaysystem$textField(payload.currentStation());
-        TextField nextStationField = betterrailwaysystem$textField(payload.nextStation());
-        TextField soundIdField = betterrailwaysystem$textField(payload.soundId());
-        TextField imageIdField = betterrailwaysystem$textField(payload.imageId());
-        TextField durationField = betterrailwaysystem$layout(new TextField()
-                .setNumbersOnlyInt(1, 60)
-                .setText(Integer.toString(payload.imageDurationSeconds()), false), layout -> {
-            layout.height(20);
-            layout.flex(1);
-        });
-        TextField speedLimitField = betterrailwaysystem$layout(new TextField()
-                .setNumbersOnlyDouble(0.01, 128.0)
-                .setText(Double.toString(payload.speedLimitBps()), false), layout -> {
-            layout.height(20);
-            layout.flex(1);
-        });
+    @Override
+    protected void init() {
+        super.init();
+        betterrailwaysystem$layoutBounds();
+        int contentX = panelX + 12;
+        int contentY = panelY + 34;
+        int contentWidth = panelWidth - 24;
+        int footerY = panelY + panelHeight - 26;
 
-        Toggle keepImageToggle = betterrailwaysystem$layout(new Toggle()
-                .setText(Text.translatable("screen.betterrailwaysystem.keep_image_until_next_balise"))
-                .setOn(payload.keepImageUntilNextBalise(), false), layout -> layout.height(20));
-        Toggle bossBarToggle = betterrailwaysystem$layout(new Toggle()
-                .setText(Text.translatable("screen.betterrailwaysystem.update_bossbar"))
-                .setOn(payload.updateBossBar(), false), layout -> layout.height(20));
+        BaliseMode initialMode = payload.parsedMode();
 
-        Button soundLibraryButton = betterrailwaysystem$layout(new Button()
-                .setText(Text.translatable("screen.betterrailwaysystem.open_sound_library"))
-                .setOnClick(event -> {
-                    MinecraftClient client = MinecraftClient.getInstance();
-                    if (client.currentScreen != null) {
+        modeButton = CyclingButtonWidget.<BaliseMode>builder(mode ->
+                        Text.translatable("screen.betterrailwaysystem.mode." + mode.serializedName()))
+                .values(List.of(BaliseMode.values()))
+                .initially(initialMode)
+                .build(0, 0, 130, 20, Text.empty(), (button, value) -> betterrailwaysystem$refreshRows());
+
+        titleField = betterrailwaysystem$textField(payload.titleText(), 64);
+        subtitleField = betterrailwaysystem$textField(payload.subtitleText(), 96);
+        currentStationField = betterrailwaysystem$textField(payload.currentStation(), 64);
+        nextStationField = betterrailwaysystem$textField(payload.nextStation(), 64);
+        soundIdField = betterrailwaysystem$textField(payload.soundId(), 128);
+        imageIdField = betterrailwaysystem$textField(payload.imageId(), 128);
+
+        durationField = new TextFieldWidget(textRenderer, 0, 0, 70, 20, Text.empty());
+        durationField.setText(Integer.toString(payload.imageDurationSeconds()));
+        durationField.setTextPredicate(value -> value.isEmpty() || betterrailwaysystem$isIntInRange(value, 1, 60));
+
+        speedLimitField = new TextFieldWidget(textRenderer, 0, 0, 90, 20, Text.empty());
+        speedLimitField.setText(Double.toString(payload.speedLimitBps()));
+        speedLimitField.setTextPredicate(value -> value.isEmpty() || betterrailwaysystem$isDoubleInRange(value, 0.01, 128.0));
+
+        keepImageCheckbox = CheckboxWidget.builder(Text.translatable("screen.betterrailwaysystem.keep_image_until_next_balise"), textRenderer)
+                .pos(0, 0)
+                .checked(payload.keepImageUntilNextBalise())
+                .maxWidth(contentWidth - 24)
+                .build();
+        bossBarCheckbox = CheckboxWidget.builder(Text.translatable("screen.betterrailwaysystem.update_bossbar"), textRenderer)
+                .pos(0, 0)
+                .checked(payload.updateBossBar())
+                .maxWidth(contentWidth - 24)
+                .build();
+
+        ButtonWidget soundLibraryButton = ButtonWidget.builder(Text.translatable("screen.betterrailwaysystem.open_sound_library"), button -> {
+                    if (client != null && client.currentScreen != null) {
                         client.setScreen(new BaliseAssetLibraryScreen(client.currentScreen, BaliseAssetLibrary.AssetType.SOUND, soundIdField.getText(), soundIdField::setText));
                     }
-                }), layout -> {
-            layout.width(84);
-            layout.height(20);
-        });
-        Button imageLibraryButton = betterrailwaysystem$layout(new Button()
-                .setText(Text.translatable("screen.betterrailwaysystem.open_image_library"))
-                .setOnClick(event -> {
-                    MinecraftClient client = MinecraftClient.getInstance();
-                    if (client.currentScreen != null) {
+                })
+                .dimensions(0, 0, LIBRARY_BUTTON_WIDTH, 20)
+                .build();
+        ButtonWidget imageLibraryButton = ButtonWidget.builder(Text.translatable("screen.betterrailwaysystem.open_image_library"), button -> {
+                    if (client != null && client.currentScreen != null) {
                         client.setScreen(new BaliseAssetLibraryScreen(client.currentScreen, BaliseAssetLibrary.AssetType.IMAGE, imageIdField.getText(), imageIdField::setText));
                     }
-                }), layout -> {
-            layout.width(84);
-            layout.height(20);
-        });
-
-        UIElement titleRow = betterrailwaysystem$labeledRow("screen.betterrailwaysystem.title_text", titleField);
-        UIElement subtitleRow = betterrailwaysystem$labeledRow("screen.betterrailwaysystem.subtitle_text", subtitleField);
-        UIElement currentStationRow = betterrailwaysystem$labeledRow("screen.betterrailwaysystem.current_station", currentStationField);
-        UIElement nextStationRow = betterrailwaysystem$labeledRow("screen.betterrailwaysystem.next_station", nextStationField);
-        UIElement soundRow = betterrailwaysystem$labeledButtonRow("screen.betterrailwaysystem.sound_id", soundIdField, soundLibraryButton);
-        UIElement imageRow = betterrailwaysystem$labeledButtonRow("screen.betterrailwaysystem.image_id", imageIdField, imageLibraryButton);
-        UIElement durationRow = betterrailwaysystem$labeledRow("screen.betterrailwaysystem.image_duration", durationField);
-        UIElement speedLimitRow = betterrailwaysystem$labeledRow("screen.betterrailwaysystem.speed_limit", speedLimitField);
-
-        UIElement rows = new UIElement()
-                .layout(layout -> {
-                    layout.widthPercent(100);
-                    layout.flexDirection(FlexDirection.COLUMN);
-                    layout.gapAll(6);
                 })
-                .addChildren(
-                        betterrailwaysystem$labeledRow("screen.betterrailwaysystem.balise_mode", modeSelector),
-                        titleRow,
-                        subtitleRow,
-                        currentStationRow,
-                        nextStationRow,
-                        soundRow,
-                        imageRow,
-                        durationRow,
-                        speedLimitRow,
-                        keepImageToggle,
-                        bossBarToggle
-                );
+                .dimensions(0, 0, LIBRARY_BUTTON_WIDTH, 20)
+                .build();
 
-        modeSelector.setOnValueChanged(mode -> betterrailwaysystem$refreshModeRows(
-                mode == null ? payload.parsedMode() : mode,
-                titleRow,
-                subtitleRow,
-                currentStationRow,
-                nextStationRow,
-                soundRow,
-                imageRow,
-                durationRow,
-                speedLimitRow,
-                keepImageToggle,
-                bossBarToggle
+        formList = NativeFormWidgets.createFormList(client, contentX, contentY, contentWidth, footerY - contentY - 8, contentWidth - 16);
+        addDrawableChild(formList);
+
+        addDrawableChild(ButtonWidget.builder(Text.translatable("gui.done"), button -> betterrailwaysystem$save())
+                .dimensions(panelX + 12, footerY, (panelWidth - 32) / 2, 20)
+                .build());
+        addDrawableChild(ButtonWidget.builder(Text.translatable("gui.cancel"), button -> close())
+                .dimensions(panelX + 20 + (panelWidth - 32) / 2, footerY, (panelWidth - 32) / 2, 20)
+                .build());
+
+        betterrailwaysystem$refreshRows(soundLibraryButton, imageLibraryButton);
+        setInitialFocus(modeButton);
+    }
+
+    @Override
+    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
+        super.renderBackground(context, mouseX, mouseY, delta);
+        context.fill(panelX, panelY, panelX + panelWidth, panelY + panelHeight, 0xE0101010);
+        context.drawBorder(panelX, panelY, panelWidth, panelHeight, 0xFF8B8B8B);
+        context.drawCenteredTextWithShadow(textRenderer, title, width / 2, panelY + 12, 0xFFFFFF);
+        super.render(context, mouseX, mouseY, delta);
+    }
+
+    @Override
+    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta) {
+    }
+
+    private void betterrailwaysystem$layoutBounds() {
+        panelWidth = Math.max(340, Math.min(PANEL_WIDTH, width - 40));
+        panelHeight = Math.max(260, Math.min(PANEL_HEIGHT, height - 40));
+        panelX = (width - panelWidth) / 2;
+        panelY = (height - panelHeight) / 2;
+    }
+
+    private void betterrailwaysystem$refreshRows() {
+        ButtonWidget soundLibraryButton = ButtonWidget.builder(Text.translatable("screen.betterrailwaysystem.open_sound_library"), button -> {
+                    if (client != null && client.currentScreen != null) {
+                        client.setScreen(new BaliseAssetLibraryScreen(client.currentScreen, BaliseAssetLibrary.AssetType.SOUND, soundIdField.getText(), soundIdField::setText));
+                    }
+                })
+                .dimensions(0, 0, LIBRARY_BUTTON_WIDTH, 20)
+                .build();
+        ButtonWidget imageLibraryButton = ButtonWidget.builder(Text.translatable("screen.betterrailwaysystem.open_image_library"), button -> {
+                    if (client != null && client.currentScreen != null) {
+                        client.setScreen(new BaliseAssetLibraryScreen(client.currentScreen, BaliseAssetLibrary.AssetType.IMAGE, imageIdField.getText(), imageIdField::setText));
+                    }
+                })
+                .dimensions(0, 0, LIBRARY_BUTTON_WIDTH, 20)
+                .build();
+        betterrailwaysystem$refreshRows(soundLibraryButton, imageLibraryButton);
+    }
+
+    private void betterrailwaysystem$refreshRows(ButtonWidget soundLibraryButton, ButtonWidget imageLibraryButton) {
+        BaliseMode mode = modeButton.getValue() == null ? payload.parsedMode() : modeButton.getValue();
+        List<NativeFormWidgets.RowEntry> rows = new ArrayList<>();
+        rows.add(new NativeFormWidgets.LabeledWidgetEntry(Text.translatable("screen.betterrailwaysystem.balise_mode"), modeButton, LABEL_WIDTH));
+        if (betterrailwaysystem$showsTitleField(mode)) {
+            rows.add(new NativeFormWidgets.LabeledWidgetEntry(Text.translatable("screen.betterrailwaysystem.title_text"), titleField, LABEL_WIDTH));
+        }
+        if (betterrailwaysystem$showsSubtitleField(mode)) {
+            rows.add(new NativeFormWidgets.LabeledWidgetEntry(Text.translatable("screen.betterrailwaysystem.subtitle_text"), subtitleField, LABEL_WIDTH));
+        }
+        if (betterrailwaysystem$showsStationFields(mode)) {
+            rows.add(new NativeFormWidgets.LabeledWidgetEntry(Text.translatable("screen.betterrailwaysystem.current_station"), currentStationField, LABEL_WIDTH));
+            rows.add(new NativeFormWidgets.LabeledWidgetEntry(Text.translatable("screen.betterrailwaysystem.next_station"), nextStationField, LABEL_WIDTH));
+        }
+        if (betterrailwaysystem$showsSoundField(mode)) {
+            rows.add(new NativeFormWidgets.LabeledDualWidgetEntry(Text.translatable("screen.betterrailwaysystem.sound_id"), soundIdField, soundLibraryButton, LABEL_WIDTH, LIBRARY_BUTTON_WIDTH));
+        }
+        if (betterrailwaysystem$showsImageField(mode)) {
+            rows.add(new NativeFormWidgets.LabeledDualWidgetEntry(Text.translatable("screen.betterrailwaysystem.image_id"), imageIdField, imageLibraryButton, LABEL_WIDTH, LIBRARY_BUTTON_WIDTH));
+        }
+        if (betterrailwaysystem$showsImageDurationField(mode)) {
+            rows.add(new NativeFormWidgets.LabeledWidgetEntry(Text.translatable("screen.betterrailwaysystem.image_duration"), durationField, LABEL_WIDTH));
+        }
+        if (betterrailwaysystem$showsSpeedLimitField(mode)) {
+            rows.add(new NativeFormWidgets.LabeledWidgetEntry(Text.translatable("screen.betterrailwaysystem.speed_limit"), speedLimitField, LABEL_WIDTH));
+        }
+        if (betterrailwaysystem$showsKeepImageField(mode)) {
+            rows.add(new NativeFormWidgets.FullWidthWidgetEntry(keepImageCheckbox));
+        }
+        if (betterrailwaysystem$showsBossBarField(mode)) {
+            rows.add(new NativeFormWidgets.FullWidthWidgetEntry(bossBarCheckbox));
+        }
+        formList.setEntries(rows);
+    }
+
+    private void betterrailwaysystem$save() {
+        BaliseMode mode = modeButton.getValue() == null ? payload.parsedMode() : modeButton.getValue();
+        int durationSeconds = betterrailwaysystem$parseInt(durationField.getText(), payload.imageDurationSeconds(), 1, 60);
+        double speedLimit = betterrailwaysystem$parseDouble(speedLimitField.getText(), payload.speedLimitBps(), 0.01, 128.0);
+        ClientPlayNetworking.send(new SaveBalisePayload(
+                payload.pos(),
+                mode.serializedName(),
+                titleField.getText(),
+                subtitleField.getText(),
+                currentStationField.getText(),
+                nextStationField.getText(),
+                soundIdField.getText(),
+                imageIdField.getText(),
+                durationSeconds,
+                keepImageCheckbox.isChecked(),
+                bossBarCheckbox.isChecked(),
+                speedLimit
         ));
-        betterrailwaysystem$refreshModeRows(
-                payload.parsedMode(),
-                titleRow,
-                subtitleRow,
-                currentStationRow,
-                nextStationRow,
-                soundRow,
-                imageRow,
-                durationRow,
-                speedLimitRow,
-                keepImageToggle,
-                bossBarToggle
-        );
-
-        ScrollerView scrollerView = betterrailwaysystem$layout(new ScrollerView()
-                .addScrollViewChild(rows), layout -> {
-            layout.widthPercent(100);
-            layout.flex(1);
-            layout.minHeight(0);
-        });
-
-        Button doneButton = betterrailwaysystem$layout(new Button()
-                .setText(Text.translatable("gui.done"))
-                .setOnClick(event -> {
-                    BaliseMode mode = modeSelector.getValue() == null ? payload.parsedMode() : modeSelector.getValue();
-                    int durationSeconds = betterrailwaysystem$parseInt(durationField.getText(), payload.imageDurationSeconds(), 1, 60);
-                    double speedLimit = betterrailwaysystem$parseDouble(speedLimitField.getText(), payload.speedLimitBps(), 0.01, 128.0);
-                    ClientPlayNetworking.send(new SaveBalisePayload(
-                            payload.pos(),
-                            mode.serializedName(),
-                            titleField.getText(),
-                            subtitleField.getText(),
-                            currentStationField.getText(),
-                            nextStationField.getText(),
-                            soundIdField.getText(),
-                            imageIdField.getText(),
-                            durationSeconds,
-                            keepImageToggle.isOn(),
-                            bossBarToggle.isOn(),
-                            speedLimit
-                    ));
-                    MinecraftClient.getInstance().setScreen(null);
-                }), layout -> {
-            layout.height(20);
-            layout.flex(1);
-        });
-        Button cancelButton = betterrailwaysystem$layout(new Button()
-                .setText(Text.translatable("gui.cancel"))
-                .setOnClick(event -> MinecraftClient.getInstance().setScreen(null)), layout -> {
-            layout.height(20);
-            layout.flex(1);
-        });
-
-        UIElement footer = new UIElement()
-                .layout(layout -> {
-                    layout.widthPercent(100);
-                    layout.flexDirection(FlexDirection.ROW);
-                    layout.gapAll(8);
-                })
-                .addChildren(doneButton, cancelButton);
-
-        UIElement panel = new UIElement()
-                .layout(layout -> {
-                    layout.widthPercent(64);
-                    layout.maxWidth(380);
-                    layout.minWidth(260);
-                    layout.heightPercent(76);
-                    layout.maxHeight(360);
-                    layout.minHeight(240);
-                    layout.paddingAll(8);
-                    layout.gapAll(8);
-                    layout.flexDirection(FlexDirection.COLUMN);
-                })
-                .style(style -> style.backgroundTexture(Sprites.BORDER))
-                .addChildren(
-                        new Label()
-                                .setText(Text.translatable("screen.betterrailwaysystem.railway_balise"))
-                                .textStyle(textStyle -> textStyle.fontSize(18))
-                                .layout(layout -> layout.height(24)),
-                        scrollerView,
-                        footer
-                );
-
-        UIElement root = new UIElement()
-                .layout(layout -> {
-                    layout.widthPercent(100);
-                    layout.heightPercent(100);
-                    layout.justifyContent(AlignContent.CENTER);
-                    layout.alignItems(AlignItems.CENTER);
-                })
-                .addChild(panel);
-        return new ModularUI(UI.of(root));
+        close();
     }
 
-    private static TextField betterrailwaysystem$textField(String value) {
-        return betterrailwaysystem$layout(new TextField()
-                .setText(value == null ? "" : value, false), layout -> {
-            layout.height(20);
-            layout.flex(1);
-        });
-    }
-
-    private static UIElement betterrailwaysystem$labeledRow(String translationKey, UIElement field) {
-        return new UIElement()
-                .layout(layout -> {
-                    layout.widthPercent(100);
-                    layout.flexDirection(FlexDirection.ROW);
-                    layout.alignItems(AlignItems.CENTER);
-                    layout.gapAll(8);
-                })
-                .addChildren(
-                        new Label()
-                                .setText(Text.translatable(translationKey))
-                                .layout(layout -> {
-                                    layout.width(116);
-                                    layout.height(20);
-                                }),
-                        field
-                );
-    }
-
-    private static UIElement betterrailwaysystem$labeledButtonRow(String translationKey, UIElement field, UIElement button) {
-        return new UIElement()
-                .layout(layout -> {
-                    layout.widthPercent(100);
-                    layout.flexDirection(FlexDirection.ROW);
-                    layout.alignItems(AlignItems.CENTER);
-                    layout.gapAll(8);
-                })
-                .addChildren(
-                        new Label()
-                                .setText(Text.translatable(translationKey))
-                                .layout(layout -> {
-                                    layout.width(116);
-                                    layout.height(20);
-                                }),
-                        new UIElement()
-                                .layout(layout -> {
-                                    layout.flexDirection(FlexDirection.ROW);
-                                    layout.alignItems(AlignItems.CENTER);
-                                    layout.gapAll(6);
-                                    layout.flex(1);
-                                })
-                                .addChildren(field, button)
-                );
-    }
-
-    private static void betterrailwaysystem$refreshModeRows(
-            BaliseMode mode,
-            UIElement titleRow,
-            UIElement subtitleRow,
-            UIElement currentStationRow,
-            UIElement nextStationRow,
-            UIElement soundRow,
-            UIElement imageRow,
-            UIElement durationRow,
-            UIElement speedLimitRow,
-            UIElement keepImageToggle,
-            UIElement bossBarToggle
-    ) {
-        titleRow.setDisplay(betterrailwaysystem$showsTitleField(mode));
-        subtitleRow.setDisplay(betterrailwaysystem$showsSubtitleField(mode));
-        currentStationRow.setDisplay(betterrailwaysystem$showsStationFields(mode));
-        nextStationRow.setDisplay(betterrailwaysystem$showsStationFields(mode));
-        soundRow.setDisplay(betterrailwaysystem$showsSoundField(mode));
-        imageRow.setDisplay(betterrailwaysystem$showsImageField(mode));
-        durationRow.setDisplay(betterrailwaysystem$showsImageDurationField(mode));
-        speedLimitRow.setDisplay(betterrailwaysystem$showsSpeedLimitField(mode));
-        keepImageToggle.setDisplay(betterrailwaysystem$showsKeepImageField(mode));
-        bossBarToggle.setDisplay(betterrailwaysystem$showsBossBarField(mode));
+    private TextFieldWidget betterrailwaysystem$textField(String value, int maxLength) {
+        TextFieldWidget textField = new TextFieldWidget(textRenderer, 0, 0, 120, 20, Text.empty());
+        textField.setMaxLength(maxLength);
+        textField.setText(value == null ? "" : value);
+        return textField;
     }
 
     private static boolean betterrailwaysystem$showsTitleField(BaliseMode mode) {
@@ -341,6 +257,24 @@ public final class RailwayBaliseScreen extends ModularUIScreen {
         return mode == BaliseMode.ARRIVAL || mode == BaliseMode.DEPARTURE || mode == BaliseMode.ANNOUNCEMENT;
     }
 
+    private static boolean betterrailwaysystem$isIntInRange(String value, int min, int max) {
+        try {
+            int parsed = Integer.parseInt(value);
+            return parsed >= min && parsed <= max;
+        } catch (NumberFormatException ignored) {
+            return false;
+        }
+    }
+
+    private static boolean betterrailwaysystem$isDoubleInRange(String value, double min, double max) {
+        try {
+            double parsed = Double.parseDouble(value);
+            return parsed >= min && parsed <= max;
+        } catch (NumberFormatException ignored) {
+            return false;
+        }
+    }
+
     private static int betterrailwaysystem$parseInt(String value, int fallback, int min, int max) {
         try {
             return MathHelper.clamp(Integer.parseInt(value.trim()), min, max);
@@ -355,10 +289,5 @@ public final class RailwayBaliseScreen extends ModularUIScreen {
         } catch (NumberFormatException ignored) {
             return fallback;
         }
-    }
-
-    private static <T extends UIElement> T betterrailwaysystem$layout(T element, Consumer<LayoutStyle> consumer) {
-        element.layout(consumer);
-        return element;
     }
 }

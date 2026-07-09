@@ -111,7 +111,7 @@ public final class BetterRailwaySystemNetworking {
                 blockEntity.getLineId(),
                 blockEntity.getLineThemeColor(),
                 blockEntity.getDirection().serializedName(),
-                blockEntity.getIntervalSeconds(),
+                blockEntity.getTargetTrainCount(),
                 (blockEntity.isRedstoneControlled() ? 1 : 0) | (blockEntity.isCircularLine() ? 2 : 0),
                 cityOptions
         ));
@@ -146,7 +146,7 @@ public final class BetterRailwaySystemNetworking {
     private static void saveTrainSpawner(ServerPlayerEntity player, SaveTrainSpawnerPayload payload) {
         TrainSpawnerBlockEntity blockEntity = getNearbyBlockEntity(player, payload.pos(), TrainSpawnerBlockEntity.class);
         if (blockEntity != null) {
-            blockEntity.setSettings(payload.cityName(), payload.lineId(), payload.lineThemeColor(), TrainSpawnDirection.fromString(payload.direction()), payload.intervalSeconds(), payload.redstoneControlled(), payload.circularLine());
+            blockEntity.setSettings(payload.cityName(), payload.lineId(), payload.lineThemeColor(), TrainSpawnDirection.fromString(payload.direction()), payload.targetTrainCount(), payload.redstoneControlled(), payload.circularLine());
         }
     }
 
@@ -200,13 +200,16 @@ public final class BetterRailwaySystemNetworking {
             access.betterrailwaysystem$clearVisitedStations();
             access.betterrailwaysystem$setCurrentStation("");
             access.betterrailwaysystem$setNextStation("");
-            if (access.betterrailwaysystem$isCircularLine()) {
-                access.betterrailwaysystem$setCircularLine(true);
-                BlockPos originSpawnerPos = access.betterrailwaysystem$getOriginSpawnerPos();
-                if (originSpawnerPos != null) {
-                    access.betterrailwaysystem$setOriginSpawnerPos(originSpawnerPos);
-                }
-            }
+            access.betterrailwaysystem$clearActiveSpeedLimitBps();
+            access.betterrailwaysystem$setWaitingAtStopRail(false);
+            access.betterrailwaysystem$clearPendingStopRail();
+            access.betterrailwaysystem$setStopDwellTicksRemaining(0);
+            access.betterrailwaysystem$setCityName("");
+            access.betterrailwaysystem$setLineId("");
+            access.betterrailwaysystem$setLineThemeColor(LineThemeColor.BLUE.serializedName());
+            access.betterrailwaysystem$setCircularLine(false);
+            access.betterrailwaysystem$setOriginSpawnerPos(null);
+            access.betterrailwaysystem$setLineDirection(TrainSpawnDirection.FORWARD);
         }
     }
 
@@ -234,9 +237,10 @@ public final class BetterRailwaySystemNetworking {
                 return;
             }
             String cityName = access.betterrailwaysystem$getCityName();
-            List<String> stations = RailwayLineState.get(serverWorld).getLine(cityName, lineId);
-            List<org.dcstudio.minecart.RailwayLineState.StationEntry> stationEntries = RailwayLineState.get(serverWorld).getLineStations(cityName, lineId);
-            String lineThemeColor = RailwayLineState.get(serverWorld).getLineThemeColor(cityName, lineId);
+            String direction = access.betterrailwaysystem$getLineDirection().serializedName();
+            List<String> stations = RailwayLineState.get(serverWorld).getLine(cityName, lineId, direction);
+            List<org.dcstudio.minecart.RailwayLineState.StationEntry> stationEntries = RailwayLineState.get(serverWorld).getLineStations(cityName, lineId, direction);
+            String lineThemeColor = RailwayLineState.get(serverWorld).getLineThemeColor(cityName, lineId, direction);
             if (stations.isEmpty() || stationEntries.isEmpty()) {
                 stations = access.betterrailwaysystem$getVisitedStations();
                 List<net.minecraft.util.math.BlockPos> positions = access.betterrailwaysystem$getVisitedStationPositions();
@@ -250,11 +254,12 @@ public final class BetterRailwaySystemNetworking {
                         .toList();
                 lineThemeColor = access.betterrailwaysystem$getLineThemeColor();
             }
-            String displayLineId = cityName.isBlank() ? lineId : cityName + " / " + lineId;
+            String displayLineId = cityName.isBlank() ? lineId : cityName + " / " + lineId + " / " + direction;
             int color = LineThemeColor.fromString(lineThemeColor).rgb();
             List<OpenLineMapPayload.LineEntry> lines = List.of(new OpenLineMapPayload.LineEntry(
                     cityName,
                     lineId,
+                    direction,
                     color,
                     stationEntries.stream()
                             .map(station -> new OpenLineMapPayload.StationEntry(station.stationName(), station.pos()))
@@ -265,18 +270,17 @@ public final class BetterRailwaySystemNetworking {
         }
 
         List<OpenLineMapPayload.LineEntry> lineEntries = new java.util.ArrayList<>();
-        RailwayLineState.get(serverWorld).getAllLines().forEach((cityName, cityLines) -> {
-            cityLines.forEach((lineId, line) -> {
-                int color = LineThemeColor.fromString(line.lineThemeColor()).rgb();
-                lineEntries.add(new OpenLineMapPayload.LineEntry(
-                        cityName,
-                        lineId,
-                        color,
-                        line.stations().stream()
-                                .map(station -> new OpenLineMapPayload.StationEntry(station.stationName(), station.pos()))
-                                .toList()
-                ));
-            });
+        RailwayLineState.get(serverWorld).getAllLineEntries().forEach(line -> {
+            int color = LineThemeColor.fromString(line.lineThemeColor()).rgb();
+            lineEntries.add(new OpenLineMapPayload.LineEntry(
+                    line.cityName(),
+                    line.lineId(),
+                    line.direction(),
+                    color,
+                    line.stations().stream()
+                            .map(station -> new OpenLineMapPayload.StationEntry(station.stationName(), station.pos()))
+                            .toList()
+            ));
         });
         ServerPlayNetworking.send(player, new OpenLineMapPayload(true, "", "", 0xFFD966, lineEntries));
     }

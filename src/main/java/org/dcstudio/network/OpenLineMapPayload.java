@@ -34,6 +34,8 @@ public record OpenLineMapPayload(
             LineEntry::cityName,
             PacketCodecs.STRING,
             LineEntry::lineId,
+            PacketCodecs.STRING,
+            LineEntry::direction,
             PacketCodecs.VAR_INT,
             LineEntry::lineColor,
             PacketCodecs.collection(ArrayList::new, STATION_ENTRY_CODEC),
@@ -63,6 +65,7 @@ public record OpenLineMapPayload(
     public record LineEntry(
             String cityName,
             String lineId,
+            String direction,
             int lineColor,
             List<StationEntry> stations
     ) {

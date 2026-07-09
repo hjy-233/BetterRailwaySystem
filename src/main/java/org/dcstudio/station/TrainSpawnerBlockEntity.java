@@ -22,6 +22,7 @@ import org.dcstudio.BetterRailwaySystem;
 import org.dcstudio.minecart.BetterRailwaySystemAccess;
 import org.dcstudio.minecart.LineThemeColor;
 import org.dcstudio.minecart.RailwayCityState;
+import org.dcstudio.minecart.RailwayLineState;
 import org.dcstudio.minecart.TrainSpawnDirection;
 import org.jetbrains.annotations.Nullable;
 
@@ -34,7 +35,7 @@ public final class TrainSpawnerBlockEntity extends BlockEntity {
     private String lineId = "L1";
     private String lineThemeColor = LineThemeColor.BLUE.serializedName();
     private TrainSpawnDirection direction = TrainSpawnDirection.FORWARD;
-    private int intervalSeconds = 60;
+    private int targetTrainCount = 1;
     private boolean redstoneControlled;
     private boolean circularLine;
     private int cooldownTicks;
@@ -43,7 +44,7 @@ public final class TrainSpawnerBlockEntity extends BlockEntity {
 
     public TrainSpawnerBlockEntity(BlockPos pos, BlockState state) {
         super(BetterRailwaySystem.TRAIN_SPAWNER_BLOCK_ENTITY, pos, state);
-        cooldownTicks = intervalSeconds * 20;
+        cooldownTicks = 20;
     }
 
     public static void tick(ServerWorld world, BlockPos pos, BlockState state, TrainSpawnerBlockEntity blockEntity) {
@@ -62,8 +63,11 @@ public final class TrainSpawnerBlockEntity extends BlockEntity {
             blockEntity.cooldownTicks--;
         }
         if (blockEntity.cooldownTicks <= 0) {
-            blockEntity.spawnMinecart(world);
-            blockEntity.cooldownTicks = Math.max(20, blockEntity.intervalSeconds * 20);
+            int activeMinecartCount = blockEntity.betterrailwaysystem$countActiveMinecarts(world);
+            if (activeMinecartCount < blockEntity.targetTrainCount) {
+                blockEntity.spawnMinecart(world);
+            }
+            blockEntity.cooldownTicks = blockEntity.betterrailwaysystem$computeCooldownTicks(world, activeMinecartCount);
         }
     }
 
@@ -83,8 +87,8 @@ public final class TrainSpawnerBlockEntity extends BlockEntity {
         return lineThemeColor;
     }
 
-    public int getIntervalSeconds() {
-        return intervalSeconds;
+    public int getTargetTrainCount() {
+        return targetTrainCount;
     }
 
     public boolean isRedstoneControlled() {
@@ -95,15 +99,15 @@ public final class TrainSpawnerBlockEntity extends BlockEntity {
         return circularLine;
     }
 
-    public void setSettings(String cityName, String lineId, String lineThemeColor, TrainSpawnDirection direction, int intervalSeconds, boolean redstoneControlled, boolean circularLine) {
+    public void setSettings(String cityName, String lineId, String lineThemeColor, TrainSpawnDirection direction, int targetTrainCount, boolean redstoneControlled, boolean circularLine) {
         this.cityName = sanitizeText(cityName, 32, "Default");
         this.lineId = sanitizeText(lineId, 32, "L1");
         this.lineThemeColor = LineThemeColor.fromString(lineThemeColor).serializedName();
         this.direction = direction == null ? TrainSpawnDirection.FORWARD : direction;
-        this.intervalSeconds = MathHelper.clamp(intervalSeconds, 1, 3600);
+        this.targetTrainCount = MathHelper.clamp(targetTrainCount, 1, 64);
         this.redstoneControlled = redstoneControlled;
         this.circularLine = circularLine;
-        this.cooldownTicks = Math.max(20, this.intervalSeconds * 20);
+        this.cooldownTicks = 20;
         if (world instanceof ServerWorld serverWorld) {
             RailwayCityState.get(serverWorld).addCity(this.cityName);
         }
@@ -120,7 +124,7 @@ public final class TrainSpawnerBlockEntity extends BlockEntity {
         nbt.putString("LineId", lineId);
         nbt.putString("LineThemeColor", lineThemeColor);
         nbt.putString("Direction", direction.serializedName());
-        nbt.putInt("IntervalSeconds", intervalSeconds);
+        nbt.putInt("TargetTrainCount", targetTrainCount);
         nbt.putBoolean("RedstoneControlled", redstoneControlled);
         nbt.putBoolean("CircularLine", circularLine);
         nbt.putInt("CooldownTicks", cooldownTicks);
@@ -134,10 +138,12 @@ public final class TrainSpawnerBlockEntity extends BlockEntity {
         lineId = sanitizeText(nbt.getString("LineId"), 32, "L1");
         lineThemeColor = LineThemeColor.fromString(nbt.getString("LineThemeColor")).serializedName();
         direction = TrainSpawnDirection.fromString(nbt.getString("Direction"));
-        intervalSeconds = MathHelper.clamp(nbt.getInt("IntervalSeconds"), 1, 3600);
+        targetTrainCount = nbt.contains("TargetTrainCount")
+                ? MathHelper.clamp(nbt.getInt("TargetTrainCount"), 1, 64)
+                : 1;
         redstoneControlled = nbt.getBoolean("RedstoneControlled");
         circularLine = nbt.getBoolean("CircularLine");
-        cooldownTicks = nbt.contains("CooldownTicks") ? nbt.getInt("CooldownTicks") : intervalSeconds * 20;
+        cooldownTicks = nbt.contains("CooldownTicks") ? nbt.getInt("CooldownTicks") : 20;
         wasPowered = nbt.getBoolean("WasPowered");
     }
 
@@ -151,12 +157,12 @@ public final class TrainSpawnerBlockEntity extends BlockEntity {
         return BlockEntityUpdateS2CPacket.create(this);
     }
 
-    private void spawnMinecart(ServerWorld world) {
+    private boolean spawnMinecart(ServerWorld world) {
         BlockPos railPos = pos.up();
         if (!world.getBlockState(railPos).isIn(net.minecraft.registry.tag.BlockTags.RAILS)) {
             railPos = pos;
             if (!world.getBlockState(railPos).isIn(net.minecraft.registry.tag.BlockTags.RAILS)) {
-                return;
+                return false;
             }
         }
 
@@ -166,7 +172,7 @@ public final class TrainSpawnerBlockEntity extends BlockEntity {
                 minecart -> true
         );
         if (!nearbyMinecarts.isEmpty()) {
-            return;
+            return false;
         }
 
         MinecartEntity minecart = new MinecartEntity(world, railPos.getX() + 0.5, railPos.getY() + 0.0625, railPos.getZ() + 0.5);
@@ -184,6 +190,74 @@ public final class TrainSpawnerBlockEntity extends BlockEntity {
         }
         applySpawnVelocity(minecart, resolvedDirection);
         world.spawnEntity(minecart);
+        return true;
+    }
+
+    private int betterrailwaysystem$countActiveMinecarts(ServerWorld world) {
+        TrainSpawnDirection resolvedDirection = betterrailwaysystem$resolveConfiguredDirection(world);
+        int count = 0;
+        for (var entity : world.iterateEntities()) {
+            if (!(entity instanceof MinecartEntity) || !(entity instanceof BetterRailwaySystemAccess access)) {
+                continue;
+            }
+            if (!cityName.equals(access.betterrailwaysystem$getCityName()) || !lineId.equals(access.betterrailwaysystem$getLineId())) {
+                continue;
+            }
+            if (access.betterrailwaysystem$getLineDirection() != resolvedDirection) {
+                continue;
+            }
+            count++;
+        }
+        return count;
+    }
+
+    private int betterrailwaysystem$computeCooldownTicks(ServerWorld world, int activeMinecartCount) {
+        int clampedTarget = MathHelper.clamp(targetTrainCount, 1, 64);
+        if (activeMinecartCount >= clampedTarget) {
+            return 20;
+        }
+        double routeLength = betterrailwaysystem$estimateRouteLength(world);
+        double maxSpeedBps = Math.max(1.0, BetterRailwaySystem.config().maxSpeed);
+        double cycleSeconds = Math.max(4.0, routeLength / maxSpeedBps);
+        double spacingSeconds = Math.max(1.0, cycleSeconds / clampedTarget);
+        return Math.max(20, MathHelper.ceil(spacingSeconds * 20.0));
+    }
+
+    private double betterrailwaysystem$estimateRouteLength(ServerWorld world) {
+        TrainSpawnDirection resolvedDirection = betterrailwaysystem$resolveConfiguredDirection(world);
+        List<RailwayLineState.StationEntry> stations = RailwayLineState.get(world)
+                .getLineStations(cityName, lineId, resolvedDirection.serializedName());
+        if (stations.isEmpty()) {
+            return circularLine ? 160.0 : 120.0;
+        }
+        if (stations.size() == 1) {
+            return 64.0;
+        }
+        double length = 0.0;
+        for (int index = 1; index < stations.size(); index++) {
+            length += betterrailwaysystem$distanceBetween(stations.get(index - 1).pos(), stations.get(index).pos());
+        }
+        if (circularLine) {
+            length += betterrailwaysystem$distanceBetween(stations.getLast().pos(), stations.getFirst().pos());
+        }
+        return Math.max(64.0, length);
+    }
+
+    private double betterrailwaysystem$distanceBetween(BlockPos first, BlockPos second) {
+        if (first == null || second == null || BlockPos.ORIGIN.equals(first) || BlockPos.ORIGIN.equals(second)) {
+            return 48.0;
+        }
+        return Math.max(16.0, Math.sqrt(first.getSquaredDistance(second)));
+    }
+
+    private TrainSpawnDirection betterrailwaysystem$resolveConfiguredDirection(World world) {
+        BlockPos railPos = pos.up();
+        BlockState railState = world.getBlockState(railPos);
+        if (!railState.isIn(net.minecraft.registry.tag.BlockTags.RAILS)) {
+            railPos = pos;
+            railState = world.getBlockState(railPos);
+        }
+        return resolveDirection(railState, direction);
     }
 
     private void applySpawnVelocity(MinecartEntity minecart, TrainSpawnDirection resolvedDirection) {

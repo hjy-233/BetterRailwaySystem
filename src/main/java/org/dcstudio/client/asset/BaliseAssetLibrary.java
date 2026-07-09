@@ -11,20 +11,17 @@ import net.minecraft.sound.SoundEvent;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 
+import java.awt.Desktop;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.Writer;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.util.stream.Stream;
 
 // 管理 balise 图片和语音素材库，并生成本地资源包。
@@ -71,29 +68,40 @@ public final class BaliseAssetLibrary {
         }
     }
 
-    public static Optional<LibraryEntry> importFromDialog(MinecraftClient client, AssetType assetType) {
-        Path selectedPath = chooseFile(assetType.dialogTitle().getString());
-        if (selectedPath == null) {
-            return Optional.empty();
-        }
-
+    public static Path directory(AssetType assetType) {
         try {
             ensurePackStructure();
-            String fileName = selectedPath.getFileName().toString();
-            if (!assetType.isAllowed(fileName)) {
-                return Optional.empty();
-            }
+        } catch (IOException ignored) {
+        }
+        return assetType.directory();
+    }
 
-            String sanitizedFileName = sanitizeFileName(fileName, assetType.extension());
-            Path targetPath = assetType.directory().resolve(sanitizedFileName);
-            Files.copy(selectedPath, targetPath, StandardCopyOption.REPLACE_EXISTING);
+    public static boolean openDirectory(AssetType assetType) {
+        Path directory = directory(assetType);
+        if (!Files.exists(directory)) {
+            return false;
+        }
+        if (!Desktop.isDesktopSupported()) {
+            return false;
+        }
+        try {
+            Desktop.getDesktop().open(directory.toFile());
+            return true;
+        } catch (IOException | UnsupportedOperationException ignored) {
+            return false;
+        }
+    }
+
+    public static boolean reloadLibrary(MinecraftClient client, AssetType assetType) {
+        try {
+            ensurePackStructure();
             if (assetType == AssetType.SOUND) {
                 rewriteSoundsJson();
             }
             enablePackAndReload(client);
-            return Optional.of(new LibraryEntry(displayName(targetPath), assetType.identifierFor(targetPath), targetPath));
-        } catch (IOException ignored) {
-            return Optional.empty();
+            return true;
+        } catch (IOException | RuntimeException ignored) {
+            return false;
         }
     }
 
@@ -156,57 +164,6 @@ public final class BaliseAssetLibrary {
         client.reloadResources();
     }
 
-    private static Path chooseFile(String title) {
-        String osName = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
-        if (!osName.contains("mac")) {
-            return null;
-        }
-
-        ProcessBuilder processBuilder = new ProcessBuilder(
-                "/usr/bin/osascript",
-                "-e",
-                "set selectedFile to choose file with prompt \"" + escapeAppleScript(title) + "\"",
-                "-e",
-                "POSIX path of selectedFile"
-        );
-        processBuilder.redirectErrorStream(true);
-
-        try {
-            Process process = processBuilder.start();
-            String output;
-            try (InputStream inputStream = process.getInputStream()) {
-                output = new String(inputStream.readAllBytes(), StandardCharsets.UTF_8).trim();
-            }
-            int exitCode = process.waitFor();
-            if (exitCode != 0 || output.isBlank()) {
-                return null;
-            }
-            return Path.of(output);
-        } catch (IOException | InterruptedException ignored) {
-            if (ignored instanceof InterruptedException) {
-                Thread.currentThread().interrupt();
-            }
-            return null;
-        }
-    }
-
-    private static String sanitizeFileName(String fileName, String extension) {
-        String baseName = fileName;
-        int dotIndex = fileName.lastIndexOf('.');
-        if (dotIndex >= 0) {
-            baseName = fileName.substring(0, dotIndex);
-        }
-        String sanitizedBase = baseName.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9_\\-]+", "_");
-        while (sanitizedBase.contains("__")) {
-            sanitizedBase = sanitizedBase.replace("__", "_");
-        }
-        sanitizedBase = sanitizedBase.replaceAll("^_+|_+$", "");
-        if (sanitizedBase.isEmpty()) {
-            sanitizedBase = "asset";
-        }
-        return sanitizedBase + extension;
-    }
-
     private static String displayName(Path path) {
         return baseName(path);
     }
@@ -219,10 +176,6 @@ public final class BaliseAssetLibrary {
 
     private static String soundEventPath(Path path) {
         return "balise." + baseName(path);
-    }
-
-    private static String escapeAppleScript(String value) {
-        return value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
     public record LibraryEntry(
