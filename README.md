@@ -1,12 +1,21 @@
-# BetterRailwaySystem
+<div style="text-align: center;">
 
-BetterRailwaySystem is a Fabric mod for Minecraft `1.21.1` that enhances the vanilla minecart and rail system without replacing it.
+<img alt="icon.png" height="128" src="src/main/resources/assets/betterrailwaysystem/icon.png" width="128"/>
 
-The goal is simple:
+# BetterRailwaySystem Mod
+
+**BetterRailwaySystem is a Fabric mod for Minecraft that enhances the vanilla minecart and rail system without replacing it.**
+
+English｜[简体中文](./docs/README_zh.md)
+<br>
+###### *English version is translated by generative AI, please forgive any errors or inconsistencies.*
+</div>
+
+**The goal is simple:**
 
 - keep full compatibility with vanilla rails, powered rails, detector rails, activator rails, and redstone behavior
 - enhance minecart movement, operation, station handling, and line management
-- avoid introducing a separate railway system like MTR
+- avoid introducing a separate railway system like [MTR](https://modrinth.com/mod/minecraft-transit-railway)
 
 ## Current Scope
 
@@ -28,12 +37,11 @@ Implemented feature areas:
 - configurable `maxSpeed`, `acceleration`, and `deceleration` in blocks per second
 - configurable safe following distance for automatic braking behind a minecart on the same track path
 - automatic recovery and re-acceleration after temporary blocking or rebound
-- substep-based high-speed rail movement to improve curve and slope stability
+- substep-based high-speed rail movement to improve curve and slope stability(from [Fast Minecart](https://modrinth.com/mod/fast-minecart))
 - slope and high-speed movement tuning focused on keeping momentum on vanilla rails
 - minecart chunk loading while the train is running
 - unattended minecart auto-despawn after a configurable timeout
 - minecart collision and push behavior against entities disabled to reduce traffic jams
-- vanilla minecart rail friction sound reduced to nearly inaudible
 
 ### Multi-Passenger Minecart
 
@@ -108,7 +116,7 @@ Supported behavior:
 - records visited stations into the saved railway line map before removing the train
 - saves line color and station coordinates along with station order
 
-### Railway Map and Line Map
+### Railway Map
 
 The mod includes both onboard line maps and world railway map views.
 
@@ -126,6 +134,8 @@ Supported behavior:
 - station tooltip display with station name, city, line list, and saved coordinates
 - per-city legends for line color lookup
 - railway map clear actions for all data, one city, or one line from the config screen
+
+Railway Map may have many bugs, please report them in the github issues.
 
 ### Bossbar and Line Theme
 
