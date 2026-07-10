@@ -10,18 +10,23 @@ import net.minecraft.resource.ResourceType;
 import net.minecraft.sound.SoundEvent;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
+import net.minecraft.util.Util;
+import org.dcstudio.BetterRailwaySystem;
+import org.dcstudio.asset.BaliseAssetType;
+import org.dcstudio.network.BaliseAssetCatalogPayload;
 
-import java.awt.Desktop;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.Writer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Stream;
 
 // 管理 balise 图片和语音素材库，并生成本地资源包。
@@ -36,6 +41,13 @@ public final class BaliseAssetLibrary {
     private static final Path SOUND_DIR = ASSET_ROOT.resolve("sounds").resolve("balise");
     private static final Path PACK_METADATA_PATH = PACK_ROOT.resolve("pack.mcmeta");
     private static final Path SOUNDS_JSON_PATH = ASSET_ROOT.resolve("sounds.json");
+    private static final Path STAGING_ROOT = FabricLoader.getInstance().getGameDir().resolve("betterrailwaysystem_upload_staging");
+    private static final Path STAGING_IMAGE_DIR = STAGING_ROOT.resolve("images");
+    private static final Path STAGING_SOUND_DIR = STAGING_ROOT.resolve("sounds");
+    private static final Map<String, PendingAsset> PENDING_SYNC = new HashMap<>();
+    private static final Map<String, String> IMAGE_UPLOADERS = new HashMap<>();
+    private static final Map<String, String> SOUND_UPLOADERS = new HashMap<>();
+    private static int libraryRevision;
 
     private BaliseAssetLibrary() {
     }
@@ -43,23 +55,25 @@ public final class BaliseAssetLibrary {
     public static void initialize() {
         try {
             ensurePackStructure();
+            ensureStagingStructure();
             rewriteSoundsJson();
         } catch (IOException ignored) {
         }
     }
 
-    public static List<LibraryEntry> list(AssetType assetType) {
+    public static List<LibraryEntry> list(BaliseAssetType assetType) {
         try {
             ensurePackStructure();
             List<LibraryEntry> entries = new ArrayList<>();
-            try (Stream<Path> stream = Files.list(assetType.directory())) {
+            try (Stream<Path> stream = Files.list(assetDirectory(assetType))) {
                 stream.filter(Files::isRegularFile)
                         .filter(path -> assetType.isAllowed(path.getFileName().toString()))
                         .sorted(Comparator.comparing(path -> path.getFileName().toString(), String.CASE_INSENSITIVE_ORDER))
                         .forEach(path -> entries.add(new LibraryEntry(
                                 displayName(path),
-                                assetType.identifierFor(path),
-                                path
+                                identifierFor(assetType, path),
+                                path,
+                                uploaderFor(assetType, path.getFileName().toString())
                         )));
             }
             return entries;
@@ -68,40 +82,54 @@ public final class BaliseAssetLibrary {
         }
     }
 
-    public static Path directory(AssetType assetType) {
+    public static Path directory(BaliseAssetType assetType) {
         try {
             ensurePackStructure();
         } catch (IOException ignored) {
         }
-        return assetType.directory();
+        return assetDirectory(assetType);
     }
 
-    public static boolean openDirectory(AssetType assetType) {
-        Path directory = directory(assetType);
+    public static Path stagingDirectory(BaliseAssetType assetType) {
+        try {
+            ensureStagingStructure();
+        } catch (IOException ignored) {
+        }
+        return stagingAssetDirectory(assetType);
+    }
+
+    public static boolean openStagingDirectory(BaliseAssetType assetType) {
+        Path directory = stagingDirectory(assetType);
         if (!Files.exists(directory)) {
             return false;
         }
-        if (!Desktop.isDesktopSupported()) {
-            return false;
-        }
         try {
-            Desktop.getDesktop().open(directory.toFile());
+            Util.getOperatingSystem().open(directory.toUri());
             return true;
-        } catch (IOException | UnsupportedOperationException ignored) {
+        } catch (Exception ignored) {
             return false;
         }
     }
 
-    public static boolean reloadLibrary(MinecraftClient client, AssetType assetType) {
+    public static List<UploadEntry> listUploadEntries(BaliseAssetType assetType) {
         try {
-            ensurePackStructure();
-            if (assetType == AssetType.SOUND) {
-                rewriteSoundsJson();
+            ensureStagingStructure();
+            List<UploadEntry> entries = new ArrayList<>();
+            try (Stream<Path> stream = Files.list(stagingAssetDirectory(assetType))) {
+                stream.filter(Files::isRegularFile)
+                        .filter(path -> assetType.isAllowed(path.getFileName().toString()))
+                        .sorted(Comparator.comparing(path -> path.getFileName().toString(), String.CASE_INSENSITIVE_ORDER))
+                        .forEach(path -> {
+                            try {
+                                entries.add(new UploadEntry(assetType, path.getFileName().toString(), Files.readAllBytes(path)));
+                            } catch (IOException exception) {
+                                BetterRailwaySystem.LOGGER.warn("Failed to read staged balise asset {}", path, exception);
+                            }
+                        });
             }
-            enablePackAndReload(client);
-            return true;
-        } catch (IOException | RuntimeException ignored) {
-            return false;
+            return entries;
+        } catch (IOException ignored) {
+            return List.of();
         }
     }
 
@@ -116,10 +144,73 @@ public final class BaliseAssetLibrary {
         MinecraftClient.getInstance().getSoundManager().play(PositionedSoundInstance.master(SoundEvent.of(identifier), 1.0F));
     }
 
+    public static void applyServerCatalog(List<BaliseAssetCatalogPayload.Entry> imageFiles, List<BaliseAssetCatalogPayload.Entry> soundFiles) {
+        try {
+            ensurePackStructure();
+            deleteFilesNotInCatalog(BaliseAssetType.IMAGE, imageFiles.stream().map(BaliseAssetCatalogPayload.Entry::fileName).toList());
+            deleteFilesNotInCatalog(BaliseAssetType.SOUND, soundFiles.stream().map(BaliseAssetCatalogPayload.Entry::fileName).toList());
+            refreshUploaderMap(BaliseAssetType.IMAGE, imageFiles);
+            refreshUploaderMap(BaliseAssetType.SOUND, soundFiles);
+            PENDING_SYNC.clear();
+        } catch (IOException exception) {
+            BetterRailwaySystem.LOGGER.warn("Failed to apply balise asset catalog", exception);
+        }
+    }
+
+    public static void acceptSyncedChunk(BaliseAssetType assetType, String fileName, int chunkIndex, int chunkCount, byte[] data) {
+        String normalizedFileName = sanitizeFileName(fileName, assetType);
+        if (normalizedFileName == null) {
+            return;
+        }
+        String key = assetType.serializedName() + ":" + normalizedFileName;
+        PendingAsset pendingAsset = PENDING_SYNC.computeIfAbsent(key, ignored -> new PendingAsset(assetType, normalizedFileName, chunkCount));
+        if (pendingAsset.chunkCount() != Math.max(1, chunkCount)) {
+            pendingAsset = new PendingAsset(assetType, normalizedFileName, chunkCount);
+            PENDING_SYNC.put(key, pendingAsset);
+        }
+        if (chunkIndex < 0 || chunkIndex >= pendingAsset.chunkCount()) {
+            return;
+        }
+        pendingAsset.storeChunk(chunkIndex, data);
+        if (!pendingAsset.isComplete()) {
+            return;
+        }
+        try {
+            Files.createDirectories(directory(assetType));
+            Files.write(directory(assetType).resolve(normalizedFileName), pendingAsset.joinBytes());
+        } catch (IOException exception) {
+            BetterRailwaySystem.LOGGER.warn("Failed to write synced balise asset {}", normalizedFileName, exception);
+        } finally {
+            PENDING_SYNC.remove(key);
+        }
+    }
+
+    public static boolean finalizeServerSync(MinecraftClient client) {
+        try {
+            ensurePackStructure();
+            rewriteSoundsJson();
+            enablePackAndReload(client);
+            libraryRevision++;
+            return true;
+        } catch (IOException | RuntimeException exception) {
+            BetterRailwaySystem.LOGGER.warn("Failed to finalize synced balise assets", exception);
+            return false;
+        }
+    }
+
+    public static int libraryRevision() {
+        return libraryRevision;
+    }
+
     private static void ensurePackStructure() throws IOException {
         Files.createDirectories(IMAGE_DIR);
         Files.createDirectories(SOUND_DIR);
         writePackMetadata();
+    }
+
+    private static void ensureStagingStructure() throws IOException {
+        Files.createDirectories(STAGING_IMAGE_DIR);
+        Files.createDirectories(STAGING_SOUND_DIR);
     }
 
     private static void writePackMetadata() throws IOException {
@@ -139,7 +230,7 @@ public final class BaliseAssetLibrary {
         Map<String, Object> sounds = new LinkedHashMap<>();
         try (Stream<Path> stream = Files.list(SOUND_DIR)) {
             stream.filter(Files::isRegularFile)
-                    .filter(path -> AssetType.SOUND.isAllowed(path.getFileName().toString()))
+                    .filter(path -> BaliseAssetType.SOUND.isAllowed(path.getFileName().toString()))
                     .sorted(Comparator.comparing(path -> path.getFileName().toString(), String.CASE_INSENSITIVE_ORDER))
                     .forEach(path -> {
                         String eventPath = soundEventPath(path);
@@ -178,47 +269,121 @@ public final class BaliseAssetLibrary {
         return "balise." + baseName(path);
     }
 
+    private static void deleteFilesNotInCatalog(BaliseAssetType assetType, List<String> expectedFiles) throws IOException {
+        Set<String> allowed = Set.copyOf(expectedFiles.stream()
+                .map(fileName -> sanitizeFileName(fileName, assetType))
+                .filter(java.util.Objects::nonNull)
+                .toList());
+        try (Stream<Path> stream = Files.list(directory(assetType))) {
+            stream.filter(Files::isRegularFile)
+                    .filter(path -> !allowed.contains(path.getFileName().toString()))
+                    .forEach(path -> {
+                        try {
+                            Files.deleteIfExists(path);
+                        } catch (IOException exception) {
+                            BetterRailwaySystem.LOGGER.warn("Failed to delete stale balise asset {}", path, exception);
+                        }
+                    });
+        }
+    }
+
+    private static void refreshUploaderMap(BaliseAssetType assetType, List<BaliseAssetCatalogPayload.Entry> entries) {
+        Map<String, String> uploaders = uploaderMap(assetType);
+        uploaders.clear();
+        for (BaliseAssetCatalogPayload.Entry entry : entries) {
+            String fileName = sanitizeFileName(entry.fileName(), assetType);
+            if (fileName != null) {
+                uploaders.put(fileName, entry.uploadedBy());
+            }
+        }
+    }
+
+    private static String uploaderFor(BaliseAssetType assetType, String fileName) {
+        return uploaderMap(assetType).getOrDefault(fileName, "");
+    }
+
+    private static Map<String, String> uploaderMap(BaliseAssetType assetType) {
+        return assetType == BaliseAssetType.SOUND ? SOUND_UPLOADERS : IMAGE_UPLOADERS;
+    }
+
+    private static String sanitizeFileName(String rawFileName, BaliseAssetType assetType) {
+        if (rawFileName == null || rawFileName.isBlank()) {
+            return null;
+        }
+        String fileName = rawFileName.replace('\\', '/');
+        if (fileName.contains("/")) {
+            fileName = fileName.substring(fileName.lastIndexOf('/') + 1);
+        }
+        if (fileName.isBlank() || fileName.contains("..") || !assetType.isAllowed(fileName)) {
+            return null;
+        }
+        return fileName;
+    }
+
     public record LibraryEntry(
             String displayName,
             String identifier,
-            Path filePath
+            Path filePath,
+            String uploadedBy
+        ) {
+    }
+
+    public record UploadEntry(
+            BaliseAssetType assetType,
+            String fileName,
+            byte[] data
     ) {
     }
 
-    public enum AssetType {
-        IMAGE(".png", IMAGE_DIR, "screen.betterrailwaysystem.image_library"),
-        SOUND(".ogg", SOUND_DIR, "screen.betterrailwaysystem.sound_library");
+    private static final class PendingAsset {
+        private final BaliseAssetType assetType;
+        private final String fileName;
+        private final byte[][] chunks;
 
-        private final String extension;
-        private final Path directory;
-        private final String titleKey;
-
-        AssetType(String extension, Path directory, String titleKey) {
-            this.extension = extension;
-            this.directory = directory;
-            this.titleKey = titleKey;
+        private PendingAsset(BaliseAssetType assetType, String fileName, int chunkCount) {
+            this.assetType = assetType;
+            this.fileName = fileName;
+            this.chunks = new byte[Math.max(1, chunkCount)][];
         }
 
-        public String extension() {
-            return extension;
+        private int chunkCount() {
+            return chunks.length;
         }
 
-        public Path directory() {
-            return directory;
+        private void storeChunk(int chunkIndex, byte[] data) {
+            chunks[chunkIndex] = data == null ? new byte[0] : data.clone();
         }
 
-        public Text dialogTitle() {
-            return Text.translatable(titleKey);
+        private boolean isComplete() {
+            for (byte[] chunk : chunks) {
+                if (chunk == null) {
+                    return false;
+                }
+            }
+            return true;
         }
 
-        public boolean isAllowed(String fileName) {
-            return fileName.toLowerCase(Locale.ROOT).endsWith(extension);
-        }
-
-        public String identifierFor(Path path) {
-            return this == IMAGE
-                    ? Identifier.of(NAMESPACE, "textures/balise/" + path.getFileName()).toString()
-                    : Identifier.of(NAMESPACE, soundEventPath(path)).toString();
+        private byte[] joinBytes() throws IOException {
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            for (byte[] chunk : chunks) {
+                outputStream.write(chunk);
+            }
+            return outputStream.toByteArray();
         }
     }
+
+    private static Path assetDirectory(BaliseAssetType assetType) {
+        return assetType == BaliseAssetType.SOUND ? SOUND_DIR : IMAGE_DIR;
+    }
+
+    private static Path stagingAssetDirectory(BaliseAssetType assetType) {
+        return assetType == BaliseAssetType.SOUND ? STAGING_SOUND_DIR : STAGING_IMAGE_DIR;
+    }
+
+    private static String identifierFor(BaliseAssetType assetType, Path path) {
+        return assetType == BaliseAssetType.IMAGE
+                ? Identifier.of(NAMESPACE, "textures/balise/" + path.getFileName()).toString()
+                : Identifier.of(NAMESPACE, soundEventPath(path)).toString();
+    }
+
 }

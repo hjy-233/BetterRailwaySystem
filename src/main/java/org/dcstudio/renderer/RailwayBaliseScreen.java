@@ -10,6 +10,7 @@ import net.minecraft.client.gui.widget.CyclingButtonWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.text.Text;
 import net.minecraft.util.math.MathHelper;
+import org.dcstudio.asset.BaliseAssetType;
 import org.dcstudio.client.asset.BaliseAssetLibrary;
 import org.dcstudio.minecart.BaliseMode;
 import org.dcstudio.network.OpenBaliseEditorPayload;
@@ -93,14 +94,14 @@ public final class RailwayBaliseScreen extends Screen {
 
         ButtonWidget soundLibraryButton = ButtonWidget.builder(Text.translatable("screen.betterrailwaysystem.open_sound_library"), button -> {
                     if (client != null && client.currentScreen != null) {
-                        client.setScreen(new BaliseAssetLibraryScreen(client.currentScreen, BaliseAssetLibrary.AssetType.SOUND, soundIdField.getText(), soundIdField::setText));
+                        client.setScreen(new BaliseAssetLibraryScreen(client.currentScreen, BaliseAssetType.SOUND, soundIdField.getText(), soundIdField::setText));
                     }
                 })
                 .dimensions(0, 0, LIBRARY_BUTTON_WIDTH, 20)
                 .build();
         ButtonWidget imageLibraryButton = ButtonWidget.builder(Text.translatable("screen.betterrailwaysystem.open_image_library"), button -> {
                     if (client != null && client.currentScreen != null) {
-                        client.setScreen(new BaliseAssetLibraryScreen(client.currentScreen, BaliseAssetLibrary.AssetType.IMAGE, imageIdField.getText(), imageIdField::setText));
+                        client.setScreen(new BaliseAssetLibraryScreen(client.currentScreen, BaliseAssetType.IMAGE, imageIdField.getText(), imageIdField::setText));
                     }
                 })
                 .dimensions(0, 0, LIBRARY_BUTTON_WIDTH, 20)
@@ -143,14 +144,14 @@ public final class RailwayBaliseScreen extends Screen {
     private void betterrailwaysystem$refreshRows() {
         ButtonWidget soundLibraryButton = ButtonWidget.builder(Text.translatable("screen.betterrailwaysystem.open_sound_library"), button -> {
                     if (client != null && client.currentScreen != null) {
-                        client.setScreen(new BaliseAssetLibraryScreen(client.currentScreen, BaliseAssetLibrary.AssetType.SOUND, soundIdField.getText(), soundIdField::setText));
+                        client.setScreen(new BaliseAssetLibraryScreen(client.currentScreen, BaliseAssetType.SOUND, soundIdField.getText(), soundIdField::setText));
                     }
                 })
                 .dimensions(0, 0, LIBRARY_BUTTON_WIDTH, 20)
                 .build();
         ButtonWidget imageLibraryButton = ButtonWidget.builder(Text.translatable("screen.betterrailwaysystem.open_image_library"), button -> {
                     if (client != null && client.currentScreen != null) {
-                        client.setScreen(new BaliseAssetLibraryScreen(client.currentScreen, BaliseAssetLibrary.AssetType.IMAGE, imageIdField.getText(), imageIdField::setText));
+                        client.setScreen(new BaliseAssetLibraryScreen(client.currentScreen, BaliseAssetType.IMAGE, imageIdField.getText(), imageIdField::setText));
                     }
                 })
                 .dimensions(0, 0, LIBRARY_BUTTON_WIDTH, 20)

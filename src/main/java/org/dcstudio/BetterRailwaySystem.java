@@ -11,6 +11,7 @@ import net.minecraft.item.ItemGroups;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.Registry;
 import net.minecraft.util.Identifier;
+import org.dcstudio.asset.ServerBaliseAssetLibrary;
 import org.dcstudio.config.BetterRailwaySystemConfig;
 import org.dcstudio.config.BetterRailwaySystemCommands;
 import org.dcstudio.config.BetterRailwaySystemConfigManager;
@@ -96,6 +97,7 @@ public class BetterRailwaySystem implements ModInitializer {
     @Override
     public void onInitialize() {
         config = BetterRailwaySystemConfigManager.load();
+        ServerBaliseAssetLibrary.initialize();
         registerItemGroups();
         BetterRailwaySystemCommands.register();
         BetterRailwaySystemNetworking.register();

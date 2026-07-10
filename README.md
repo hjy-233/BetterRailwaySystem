@@ -116,8 +116,9 @@ Supported behavior:
 - records visited stations into the saved railway line map before removing the train
 - saves line color and station coordinates along with station order
 
-### Railway Map
+### Railway Map（WIP)
 
+All features about railway map had been deleted, 
 The mod includes both onboard line maps and world railway map views.
 
 Supported behavior:
@@ -135,8 +136,6 @@ Supported behavior:
 - per-city legends for line color lookup
 - railway map clear actions for all data, one city, or one line from the config screen
 
-Railway Map may have many bugs, please report them in the github issues.
-
 ### Bossbar and Line Theme
 
 - current station and next station bossbar for onboard passengers
@@ -152,9 +151,19 @@ Supported behavior:
 - image library
 - sound library
 - upload new `.png` images and `.ogg` sounds
+- uploaded assets store the uploader name and show it in the client library UI
 - click-to-preview media
 - select a media identifier directly into the balise editor
-- automatic local resource pack generation and reload for uploaded assets
+- automatic local resource pack generation and reload for synced assets
+
+### Multiplayer and Asset Sync
+
+- dedicated servers are supported when both server and clients install the mod
+- server runtime also requires `Fabric API` and `cloth-config-fabric`
+- if the connected server does not have BetterRailwaySystem installed, client-only entry points such as line map requests, railway-map control actions, and balise asset sync are disabled
+- balise assets are uploaded from the client to the server, then distributed from the server to all online modded clients
+- players joining later automatically receive the current server balise asset library
+- on dedicated servers, balise asset upload is restricted to operators by default
 
 ### Configuration
 

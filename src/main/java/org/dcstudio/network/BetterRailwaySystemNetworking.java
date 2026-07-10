@@ -1,21 +1,18 @@
 package org.dcstudio.network;
 
+import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.block.entity.BlockEntity;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.vehicle.AbstractMinecartEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
 import net.minecraft.util.math.BlockPos;
+import org.dcstudio.asset.ServerBaliseAssetLibrary;
 import org.dcstudio.minecart.BaliseMode;
 import org.dcstudio.minecart.StopRailWaitMode;
 import org.dcstudio.minecart.TrainSpawnDirection;
-import org.dcstudio.minecart.BetterRailwaySystemAccess;
-import org.dcstudio.minecart.LineThemeColor;
 import org.dcstudio.minecart.RailwayCityState;
-import org.dcstudio.minecart.RailwayLineState;
 import org.dcstudio.station.RailwayBaliseBlockEntity;
 import org.dcstudio.station.StopRailBlockEntity;
 import org.dcstudio.station.TrainSpawnerBlockEntity;
@@ -35,9 +32,11 @@ public final class BetterRailwaySystemNetworking {
         PayloadTypeRegistry.playC2S().register(SaveStopRailPayload.ID, SaveStopRailPayload.CODEC);
         PayloadTypeRegistry.playS2C().register(OpenTrainSpawnerEditorPayload.ID, OpenTrainSpawnerEditorPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(SaveTrainSpawnerPayload.ID, SaveTrainSpawnerPayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(OpenLineMapPayload.ID, OpenLineMapPayload.CODEC);
-        PayloadTypeRegistry.playC2S().register(RequestLineMapPayload.ID, RequestLineMapPayload.CODEC);
-        PayloadTypeRegistry.playC2S().register(ClearRailwayMapPayload.ID, ClearRailwayMapPayload.CODEC);
+        PayloadTypeRegistry.playC2S().register(UploadBaliseAssetPayload.ID, UploadBaliseAssetPayload.CODEC);
+        PayloadTypeRegistry.playC2S().register(RequestBaliseAssetSyncPayload.ID, RequestBaliseAssetSyncPayload.CODEC);
+        PayloadTypeRegistry.playS2C().register(BaliseAssetCatalogPayload.ID, BaliseAssetCatalogPayload.CODEC);
+        PayloadTypeRegistry.playS2C().register(SyncBaliseAssetPayload.ID, SyncBaliseAssetPayload.CODEC);
+        PayloadTypeRegistry.playS2C().register(BaliseAssetSyncCompletePayload.ID, BaliseAssetSyncCompletePayload.CODEC);
         ServerPlayNetworking.registerGlobalReceiver(SaveBalisePayload.ID, (payload, context) ->
                 context.server().execute(() -> saveBalise(context.player(), payload))
         );
@@ -47,11 +46,14 @@ public final class BetterRailwaySystemNetworking {
         ServerPlayNetworking.registerGlobalReceiver(SaveTrainSpawnerPayload.ID, (payload, context) ->
                 context.server().execute(() -> saveTrainSpawner(context.player(), payload))
         );
-        ServerPlayNetworking.registerGlobalReceiver(RequestLineMapPayload.ID, (payload, context) ->
-                context.server().execute(() -> sendLineMap(context.player()))
+        ServerPlayNetworking.registerGlobalReceiver(UploadBaliseAssetPayload.ID, (payload, context) ->
+                context.server().execute(() -> uploadBaliseAsset(context.player(), payload))
         );
-        ServerPlayNetworking.registerGlobalReceiver(ClearRailwayMapPayload.ID, (payload, context) ->
-                context.server().execute(() -> clearRailwayMap(context.player(), payload))
+        ServerPlayNetworking.registerGlobalReceiver(RequestBaliseAssetSyncPayload.ID, (payload, context) ->
+                context.server().execute(() -> requestBaliseAssetSync(context.player()))
+        );
+        ServerPlayConnectionEvents.JOIN.register((handler, sender, server) ->
+                server.execute(() -> ServerBaliseAssetLibrary.syncToPlayer(handler.player))
         );
     }
 
@@ -158,130 +160,23 @@ public final class BetterRailwaySystemNetworking {
         return type.isInstance(blockEntity) ? type.cast(blockEntity) : null;
     }
 
-    public static void clearRailwayMap(ServerPlayerEntity player, ClearRailwayMapPayload payload) {
-        if (!(player.getWorld() instanceof ServerWorld serverWorld)) {
+    private static void uploadBaliseAsset(ServerPlayerEntity player, UploadBaliseAssetPayload payload) {
+        if (!betterrailwaysystem$canModifyServerAssets(player)) {
+            player.sendMessage(Text.translatable("screen.betterrailwaysystem.asset_upload_no_permission"), false);
             return;
         }
-        boolean requiresPermission = player.getServer() != null && player.getServer().isDedicated();
-        if (requiresPermission && !player.hasPermissionLevel(2)) {
-            player.sendMessage(Text.translatable("screen.betterrailwaysystem.map_clear_no_permission"), false);
-            return;
-        }
-        RailwayLineState lineState = RailwayLineState.get(serverWorld);
-        boolean changed = switch (ClearRailwayMapPayload.Mode.fromString(payload.mode())) {
-            case ALL -> lineState.clearAll();
-            case CITY -> lineState.clearCity(payload.cityName());
-            case LINE -> lineState.clearLine(payload.cityName(), payload.lineId());
-        };
-        if (!changed) {
-            player.sendMessage(Text.translatable("screen.betterrailwaysystem.map_clear_failed"), false);
-            return;
-        }
-        betterrailwaysystem$clearMinecartRouteCaches(serverWorld, payload);
-        Text feedback = switch (ClearRailwayMapPayload.Mode.fromString(payload.mode())) {
-            case ALL -> Text.translatable("screen.betterrailwaysystem.map_clear_all_done");
-            case CITY -> Text.translatable("screen.betterrailwaysystem.map_clear_city_done", payload.cityName());
-            case LINE -> Text.translatable("screen.betterrailwaysystem.map_clear_line_done", payload.cityName(), payload.lineId());
-        };
-        player.sendMessage(feedback, false);
-    }
-
-    private static void betterrailwaysystem$clearMinecartRouteCaches(ServerWorld world, ClearRailwayMapPayload payload) {
-        ClearRailwayMapPayload.Mode mode = ClearRailwayMapPayload.Mode.fromString(payload.mode());
-        String targetCity = payload.cityName();
-        String targetLine = payload.lineId();
-        for (Entity entity : world.iterateEntities()) {
-            if (!(entity instanceof AbstractMinecartEntity) || !(entity instanceof BetterRailwaySystemAccess access)) {
-                continue;
-            }
-            if (!betterrailwaysystem$matchesClearTarget(access, mode, targetCity, targetLine)) {
-                continue;
-            }
-            access.betterrailwaysystem$clearVisitedStations();
-            access.betterrailwaysystem$setCurrentStation("");
-            access.betterrailwaysystem$setNextStation("");
-            access.betterrailwaysystem$clearActiveSpeedLimitBps();
-            access.betterrailwaysystem$setWaitingAtStopRail(false);
-            access.betterrailwaysystem$clearPendingStopRail();
-            access.betterrailwaysystem$setStopDwellTicksRemaining(0);
-            access.betterrailwaysystem$setCityName("");
-            access.betterrailwaysystem$setLineId("");
-            access.betterrailwaysystem$setLineThemeColor(LineThemeColor.BLUE.serializedName());
-            access.betterrailwaysystem$setCircularLine(false);
-            access.betterrailwaysystem$setOriginSpawnerPos(null);
-            access.betterrailwaysystem$setLineDirection(TrainSpawnDirection.FORWARD);
+        boolean stored = ServerBaliseAssetLibrary.acceptUploadChunk(player, payload);
+        if (!stored) {
+            player.sendMessage(Text.translatable("screen.betterrailwaysystem.asset_upload_failed"), false);
         }
     }
 
-    private static boolean betterrailwaysystem$matchesClearTarget(BetterRailwaySystemAccess access, ClearRailwayMapPayload.Mode mode, String cityName, String lineId) {
-        return switch (mode) {
-            case ALL -> true;
-            case CITY -> cityName != null && !cityName.isBlank() && cityName.equals(access.betterrailwaysystem$getCityName());
-            case LINE -> cityName != null
-                    && !cityName.isBlank()
-                    && lineId != null
-                    && !lineId.isBlank()
-                    && cityName.equals(access.betterrailwaysystem$getCityName())
-                    && lineId.equals(access.betterrailwaysystem$getLineId());
-        };
+    private static void requestBaliseAssetSync(ServerPlayerEntity player) {
+        ServerBaliseAssetLibrary.syncAllPlayers(player.getServer());
+        player.sendMessage(Text.translatable("screen.betterrailwaysystem.asset_sync_broadcast"), false);
     }
 
-    private static void sendLineMap(ServerPlayerEntity player) {
-        if (!(player.getWorld() instanceof ServerWorld serverWorld)) {
-            return;
-        }
-
-        if (player.getVehicle() instanceof AbstractMinecartEntity minecart && minecart instanceof BetterRailwaySystemAccess access) {
-            String lineId = access.betterrailwaysystem$getLineId();
-            if (lineId.isBlank()) {
-                return;
-            }
-            String cityName = access.betterrailwaysystem$getCityName();
-            String direction = access.betterrailwaysystem$getLineDirection().serializedName();
-            List<String> stations = RailwayLineState.get(serverWorld).getLine(cityName, lineId, direction);
-            List<org.dcstudio.minecart.RailwayLineState.StationEntry> stationEntries = RailwayLineState.get(serverWorld).getLineStations(cityName, lineId, direction);
-            String lineThemeColor = RailwayLineState.get(serverWorld).getLineThemeColor(cityName, lineId, direction);
-            if (stations.isEmpty() || stationEntries.isEmpty()) {
-                stations = access.betterrailwaysystem$getVisitedStations();
-                List<net.minecraft.util.math.BlockPos> positions = access.betterrailwaysystem$getVisitedStationPositions();
-                java.util.ArrayList<OpenLineMapPayload.StationEntry> fallbackEntries = new java.util.ArrayList<>(stations.size());
-                for (int index = 0; index < stations.size(); index++) {
-                    net.minecraft.util.math.BlockPos pos = index < positions.size() ? positions.get(index) : net.minecraft.util.math.BlockPos.ORIGIN;
-                    fallbackEntries.add(new OpenLineMapPayload.StationEntry(stations.get(index), pos));
-                }
-                stationEntries = fallbackEntries.stream()
-                        .map(entry -> new org.dcstudio.minecart.RailwayLineState.StationEntry(entry.stationName(), entry.pos()))
-                        .toList();
-                lineThemeColor = access.betterrailwaysystem$getLineThemeColor();
-            }
-            String displayLineId = cityName.isBlank() ? lineId : cityName + " / " + lineId + " / " + direction;
-            int color = LineThemeColor.fromString(lineThemeColor).rgb();
-            List<OpenLineMapPayload.LineEntry> lines = List.of(new OpenLineMapPayload.LineEntry(
-                    cityName,
-                    lineId,
-                    direction,
-                    color,
-                    stationEntries.stream()
-                            .map(station -> new OpenLineMapPayload.StationEntry(station.stationName(), station.pos()))
-                            .toList()
-            ));
-            ServerPlayNetworking.send(player, new OpenLineMapPayload(false, displayLineId, access.betterrailwaysystem$getCurrentStation(), color, lines));
-            return;
-        }
-
-        List<OpenLineMapPayload.LineEntry> lineEntries = new java.util.ArrayList<>();
-        RailwayLineState.get(serverWorld).getAllLineEntries().forEach(line -> {
-            int color = LineThemeColor.fromString(line.lineThemeColor()).rgb();
-            lineEntries.add(new OpenLineMapPayload.LineEntry(
-                    line.cityName(),
-                    line.lineId(),
-                    line.direction(),
-                    color,
-                    line.stations().stream()
-                            .map(station -> new OpenLineMapPayload.StationEntry(station.stationName(), station.pos()))
-                            .toList()
-            ));
-        });
-        ServerPlayNetworking.send(player, new OpenLineMapPayload(true, "", "", 0xFFD966, lineEntries));
+    private static boolean betterrailwaysystem$canModifyServerAssets(ServerPlayerEntity player) {
+        return player.getServer() == null || !player.getServer().isDedicated() || player.hasPermissionLevel(2);
     }
 }

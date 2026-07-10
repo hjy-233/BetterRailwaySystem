@@ -1,5 +1,6 @@
 package org.dcstudio.renderer;
 
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
@@ -8,7 +9,11 @@ import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.texture.NativeImage;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
+import org.dcstudio.asset.BaliseAssetType;
+import org.dcstudio.client.BetterRailwaySystemClientSupport;
 import org.dcstudio.client.asset.BaliseAssetLibrary;
+import org.dcstudio.network.RequestBaliseAssetSyncPayload;
+import org.dcstudio.network.UploadBaliseAssetPayload;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -21,9 +26,10 @@ import java.util.function.Consumer;
 public final class BaliseAssetLibraryScreen extends Screen {
     private static final int PANEL_WIDTH = 430;
     private static final int PANEL_HEIGHT = 290;
+    private static final int CHUNK_SIZE = 32 * 1024;
 
     private final Screen parent;
-    private final BaliseAssetLibrary.AssetType assetType;
+    private final BaliseAssetType assetType;
     private final Consumer<String> applySelection;
     private final List<BaliseAssetLibrary.LibraryEntry> entries = new ArrayList<>();
     private String selectedIdentifier;
@@ -31,6 +37,8 @@ public final class BaliseAssetLibraryScreen extends Screen {
     private ButtonWidget useButton;
     private ButtonWidget clearButton;
     private Text statusText = Text.empty();
+    private String selectedUploader = "";
+    private int observedLibraryRevision = -1;
     private int previewImageWidth;
     private int previewImageHeight;
     private int panelX;
@@ -38,7 +46,7 @@ public final class BaliseAssetLibraryScreen extends Screen {
     private int panelWidth;
     private int panelHeight;
 
-    public BaliseAssetLibraryScreen(Screen parent, BaliseAssetLibrary.AssetType assetType, String selectedIdentifier, Consumer<String> applySelection) {
+    public BaliseAssetLibraryScreen(Screen parent, BaliseAssetType assetType, String selectedIdentifier, Consumer<String> applySelection) {
         super(assetType.dialogTitle());
         this.parent = parent;
         this.assetType = assetType;
@@ -82,6 +90,7 @@ public final class BaliseAssetLibraryScreen extends Screen {
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
+        betterrailwaysystem$refreshEntriesIfNeeded();
         super.renderBackground(context, mouseX, mouseY, delta);
         int previewX = panelX + 190;
         int previewY = panelY + 54;
@@ -93,6 +102,7 @@ public final class BaliseAssetLibraryScreen extends Screen {
         context.drawCenteredTextWithShadow(textRenderer, title, width / 2, panelY + 12, 0xFFFFFF);
         context.drawTextWithShadow(textRenderer, Text.translatable("screen.betterrailwaysystem.selected_asset"), panelX + 10, panelY + 32, 0xD0D0D0);
         context.drawTextWithShadow(textRenderer, selectedIdentifier.isBlank() ? "-" : selectedIdentifier, panelX + 96, panelY + 32, 0xFFFFFF);
+        context.drawTextWithShadow(textRenderer, Text.translatable("screen.betterrailwaysystem.asset_uploader", selectedUploader.isBlank() ? "-" : selectedUploader), panelX + 10, panelY + 42, 0xC0C0C0);
         context.drawTextWithShadow(textRenderer, statusText, panelX + 10, panelY + panelHeight - 44, 0xAAAAAA);
 
         context.fill(previewX, previewY, previewX + previewWidth, previewY + previewHeight, 0x66000000);
@@ -116,22 +126,33 @@ public final class BaliseAssetLibraryScreen extends Screen {
     private void reloadEntries() {
         entries.clear();
         entries.addAll(BaliseAssetLibrary.list(assetType));
+        observedLibraryRevision = BaliseAssetLibrary.libraryRevision();
         previewImageWidth = 0;
         previewImageHeight = 0;
+        selectedUploader = entries.stream()
+                .filter(entry -> entry.identifier().equals(selectedIdentifier))
+                .map(BaliseAssetLibrary.LibraryEntry::uploadedBy)
+                .findFirst()
+                .orElse("");
         betterrailwaysystem$loadPreviewMetadata();
     }
 
     private void selectIdentifier(String identifier) {
         selectedIdentifier = identifier == null ? "" : identifier;
-        if (assetType == BaliseAssetLibrary.AssetType.SOUND && !selectedIdentifier.isBlank()) {
+        if (assetType == BaliseAssetType.SOUND && !selectedIdentifier.isBlank()) {
             BaliseAssetLibrary.previewSound(selectedIdentifier);
         }
+        selectedUploader = entries.stream()
+                .filter(entry -> entry.identifier().equals(selectedIdentifier))
+                .map(BaliseAssetLibrary.LibraryEntry::uploadedBy)
+                .findFirst()
+                .orElse("");
         betterrailwaysystem$loadPreviewMetadata();
         betterrailwaysystem$refreshButtons();
     }
 
     private void betterrailwaysystem$openFolder() {
-        if (BaliseAssetLibrary.openDirectory(assetType)) {
+        if (BaliseAssetLibrary.openStagingDirectory(assetType)) {
             statusText = Text.translatable("screen.betterrailwaysystem.folder_opened");
         } else {
             statusText = Text.translatable("screen.betterrailwaysystem.folder_open_failed");
@@ -143,18 +164,17 @@ public final class BaliseAssetLibraryScreen extends Screen {
             statusText = Text.translatable("screen.betterrailwaysystem.refresh_failed");
             return;
         }
-        boolean reloaded = BaliseAssetLibrary.reloadLibrary(client, assetType);
-        if (!reloaded) {
+        if (!BetterRailwaySystemClientSupport.hasServerAssetSupport()) {
+            BetterRailwaySystemClientSupport.showServerUnavailableMessage();
+            statusText = Text.translatable("message.betterrailwaysystem.server_missing");
+            return;
+        }
+        if (!betterrailwaysystem$uploadStagedAssets()) {
             statusText = Text.translatable("screen.betterrailwaysystem.refresh_failed");
             return;
         }
-        reloadEntries();
-        if (entries.stream().noneMatch(entry -> entry.identifier().equals(selectedIdentifier))) {
-            selectedIdentifier = "";
-        }
-        listWidget.reload();
-        betterrailwaysystem$refreshButtons();
-        statusText = Text.translatable("screen.betterrailwaysystem.refresh_done");
+        ClientPlayNetworking.send(RequestBaliseAssetSyncPayload.INSTANCE);
+        statusText = Text.translatable("screen.betterrailwaysystem.sync_requested");
     }
 
     private void useSelected() {
@@ -167,6 +187,7 @@ public final class BaliseAssetLibraryScreen extends Screen {
 
     private void clearSelection() {
         applySelection.accept("");
+        selectedUploader = "";
         close();
     }
 
@@ -190,7 +211,7 @@ public final class BaliseAssetLibraryScreen extends Screen {
     private void betterrailwaysystem$loadPreviewMetadata() {
         previewImageWidth = 0;
         previewImageHeight = 0;
-        if (assetType != BaliseAssetLibrary.AssetType.IMAGE || selectedIdentifier.isBlank()) {
+        if (assetType != BaliseAssetType.IMAGE || selectedIdentifier.isBlank()) {
             return;
         }
         Identifier identifier = Identifier.tryParse(selectedIdentifier);
@@ -216,7 +237,7 @@ public final class BaliseAssetLibraryScreen extends Screen {
             return;
         }
 
-        if (assetType == BaliseAssetLibrary.AssetType.SOUND) {
+        if (assetType == BaliseAssetType.SOUND) {
             betterrailwaysystem$drawWrappedCentered(context, selectedIdentifier, x + 8, y + 8, width - 16, height - 16, 0xFFFFFF);
             return;
         }
@@ -262,6 +283,39 @@ public final class BaliseAssetLibraryScreen extends Screen {
             remaining = remaining.substring(bestLength);
         }
         return lines;
+    }
+
+    private boolean betterrailwaysystem$uploadStagedAssets() {
+        for (BaliseAssetLibrary.UploadEntry uploadEntry : BaliseAssetLibrary.listUploadEntries(assetType)) {
+            int chunkCount = Math.max(1, (int) Math.ceil(uploadEntry.data().length / (double) CHUNK_SIZE));
+            for (int chunkIndex = 0; chunkIndex < chunkCount; chunkIndex++) {
+                int start = chunkIndex * CHUNK_SIZE;
+                int end = Math.min(uploadEntry.data().length, start + CHUNK_SIZE);
+                byte[] chunk = java.util.Arrays.copyOfRange(uploadEntry.data(), start, end);
+                ClientPlayNetworking.send(new UploadBaliseAssetPayload(
+                        uploadEntry.assetType().serializedName(),
+                        uploadEntry.fileName(),
+                        chunkIndex,
+                        chunkCount,
+                        chunk
+                ));
+            }
+        }
+        return true;
+    }
+
+    private void betterrailwaysystem$refreshEntriesIfNeeded() {
+        int currentRevision = BaliseAssetLibrary.libraryRevision();
+        if (observedLibraryRevision == currentRevision || listWidget == null) {
+            return;
+        }
+        reloadEntries();
+        if (entries.stream().noneMatch(entry -> entry.identifier().equals(selectedIdentifier))) {
+            selectedIdentifier = "";
+        }
+        listWidget.reload();
+        betterrailwaysystem$refreshButtons();
+        statusText = Text.translatable("screen.betterrailwaysystem.refresh_done");
     }
 
     private final class AssetListWidget extends AlwaysSelectedEntryListWidget<AssetEntry> {

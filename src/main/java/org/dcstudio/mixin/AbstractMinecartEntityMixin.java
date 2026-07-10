@@ -25,7 +25,6 @@ import org.dcstudio.BetterRailwaySystem;
 import org.dcstudio.minecart.BaliseMode;
 import org.dcstudio.minecart.BetterRailwaySystemAccess;
 import org.dcstudio.minecart.LineThemeColor;
-import org.dcstudio.minecart.RailwayLineState;
 import org.dcstudio.minecart.StopRailWaitMode;
 import org.dcstudio.minecart.TrainSpawnDirection;
 import org.dcstudio.network.BetterRailwaySystemNetworking;
@@ -791,7 +790,6 @@ public abstract class AbstractMinecartEntityMixin implements BetterRailwaySystem
             case ARRIVAL -> {
                 if (!blockEntity.getCurrentStation().isBlank()) {
                     betterrailwaysystem$currentStation = blockEntity.getCurrentStation();
-                    betterrailwaysystem$appendVisitedStation(blockEntity.getCurrentStation(), blockEntity.getPos());
                 }
                 if (!blockEntity.getNextStation().isBlank()) {
                     betterrailwaysystem$nextStation = blockEntity.getNextStation();
@@ -816,7 +814,6 @@ public abstract class AbstractMinecartEntityMixin implements BetterRailwaySystem
             case ANNOUNCEMENT -> {
                 if (!blockEntity.getCurrentStation().isBlank()) {
                     betterrailwaysystem$currentStation = blockEntity.getCurrentStation();
-                    betterrailwaysystem$appendVisitedStation(blockEntity.getCurrentStation(), blockEntity.getPos());
                 }
                 if (!blockEntity.getNextStation().isBlank()) {
                     betterrailwaysystem$nextStation = blockEntity.getNextStation();
@@ -1024,16 +1021,6 @@ public abstract class AbstractMinecartEntityMixin implements BetterRailwaySystem
         if (collector == null) {
             return;
         }
-        if (!betterrailwaysystem$cityName.isBlank() && !betterrailwaysystem$lineId.isBlank() && !betterrailwaysystem$visitedStations.isEmpty()) {
-            RailwayLineState.get(serverWorld).updateLine(
-                    betterrailwaysystem$cityName,
-                    betterrailwaysystem$lineId,
-                    betterrailwaysystem$lineDirection.serializedName(),
-                    betterrailwaysystem$visitedStations,
-                    betterrailwaysystem$visitedStationPositions,
-                    betterrailwaysystem$lineThemeColor
-            );
-        }
         betterrailwaysystem$clearBossBar();
         betterrailwaysystem$clearForcedChunks(serverWorld);
         minecart.discard();
@@ -1041,35 +1028,9 @@ public abstract class AbstractMinecartEntityMixin implements BetterRailwaySystem
 
     @Unique
     private void betterrailwaysystem$recordCircularLineIfNeeded(AbstractMinecartEntity minecart, ServerWorld serverWorld) {
-        if (!betterrailwaysystem$circularLine || betterrailwaysystem$circularLineRecorded || betterrailwaysystem$originSpawnerPos == null) {
+        if (betterrailwaysystem$circularLineRecorded) {
             return;
         }
-        if (!betterrailwaysystem$leftOriginSpawner) {
-            if (minecart.getPos().distanceTo(Vec3d.ofCenter(betterrailwaysystem$originSpawnerPos)) > 4.0) {
-                betterrailwaysystem$leftOriginSpawner = true;
-            }
-            return;
-        }
-        if (minecart.getPos().distanceTo(Vec3d.ofCenter(betterrailwaysystem$originSpawnerPos)) > 1.75) {
-            return;
-        }
-        if (!(serverWorld.getBlockEntity(betterrailwaysystem$originSpawnerPos) instanceof org.dcstudio.station.TrainSpawnerBlockEntity spawner)) {
-            return;
-        }
-        if (!spawner.isCircularLine() || !spawner.getCityName().equals(betterrailwaysystem$cityName) || !spawner.getLineId().equals(betterrailwaysystem$lineId)) {
-            return;
-        }
-        if (betterrailwaysystem$visitedStations.isEmpty()) {
-            return;
-        }
-        RailwayLineState.get(serverWorld).updateLine(
-                betterrailwaysystem$cityName,
-                betterrailwaysystem$lineId,
-                betterrailwaysystem$lineDirection.serializedName(),
-                betterrailwaysystem$visitedStations,
-                betterrailwaysystem$visitedStationPositions,
-                betterrailwaysystem$lineThemeColor
-        );
         betterrailwaysystem$circularLineRecorded = true;
     }
 

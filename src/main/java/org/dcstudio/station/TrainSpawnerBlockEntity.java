@@ -22,7 +22,6 @@ import org.dcstudio.BetterRailwaySystem;
 import org.dcstudio.minecart.BetterRailwaySystemAccess;
 import org.dcstudio.minecart.LineThemeColor;
 import org.dcstudio.minecart.RailwayCityState;
-import org.dcstudio.minecart.RailwayLineState;
 import org.dcstudio.minecart.TrainSpawnDirection;
 import org.jetbrains.annotations.Nullable;
 
@@ -183,7 +182,7 @@ public final class TrainSpawnerBlockEntity extends BlockEntity {
             access.betterrailwaysystem$setLineThemeColor(lineThemeColor);
             access.betterrailwaysystem$setOriginSpawnerPos(pos.toImmutable());
             access.betterrailwaysystem$setCircularLine(circularLine);
-            access.betterrailwaysystem$setLineDirection(resolvedDirection);
+            access.betterrailwaysystem$setLineDirection(direction);
             access.betterrailwaysystem$clearVisitedStations();
             access.betterrailwaysystem$setCurrentStation("");
             access.betterrailwaysystem$setNextStation("");
@@ -194,7 +193,7 @@ public final class TrainSpawnerBlockEntity extends BlockEntity {
     }
 
     private int betterrailwaysystem$countActiveMinecarts(ServerWorld world) {
-        TrainSpawnDirection resolvedDirection = betterrailwaysystem$resolveConfiguredDirection(world);
+        TrainSpawnDirection configuredDirection = direction == null ? TrainSpawnDirection.FORWARD : direction;
         int count = 0;
         for (var entity : world.iterateEntities()) {
             if (!(entity instanceof MinecartEntity) || !(entity instanceof BetterRailwaySystemAccess access)) {
@@ -203,7 +202,7 @@ public final class TrainSpawnerBlockEntity extends BlockEntity {
             if (!cityName.equals(access.betterrailwaysystem$getCityName()) || !lineId.equals(access.betterrailwaysystem$getLineId())) {
                 continue;
             }
-            if (access.betterrailwaysystem$getLineDirection() != resolvedDirection) {
+            if (access.betterrailwaysystem$getLineDirection() != configuredDirection) {
                 continue;
             }
             count++;
@@ -216,48 +215,11 @@ public final class TrainSpawnerBlockEntity extends BlockEntity {
         if (activeMinecartCount >= clampedTarget) {
             return 20;
         }
-        double routeLength = betterrailwaysystem$estimateRouteLength(world);
+        double routeLength = circularLine ? 160.0 : 120.0;
         double maxSpeedBps = Math.max(1.0, BetterRailwaySystem.config().maxSpeed);
         double cycleSeconds = Math.max(4.0, routeLength / maxSpeedBps);
         double spacingSeconds = Math.max(1.0, cycleSeconds / clampedTarget);
         return Math.max(20, MathHelper.ceil(spacingSeconds * 20.0));
-    }
-
-    private double betterrailwaysystem$estimateRouteLength(ServerWorld world) {
-        TrainSpawnDirection resolvedDirection = betterrailwaysystem$resolveConfiguredDirection(world);
-        List<RailwayLineState.StationEntry> stations = RailwayLineState.get(world)
-                .getLineStations(cityName, lineId, resolvedDirection.serializedName());
-        if (stations.isEmpty()) {
-            return circularLine ? 160.0 : 120.0;
-        }
-        if (stations.size() == 1) {
-            return 64.0;
-        }
-        double length = 0.0;
-        for (int index = 1; index < stations.size(); index++) {
-            length += betterrailwaysystem$distanceBetween(stations.get(index - 1).pos(), stations.get(index).pos());
-        }
-        if (circularLine) {
-            length += betterrailwaysystem$distanceBetween(stations.getLast().pos(), stations.getFirst().pos());
-        }
-        return Math.max(64.0, length);
-    }
-
-    private double betterrailwaysystem$distanceBetween(BlockPos first, BlockPos second) {
-        if (first == null || second == null || BlockPos.ORIGIN.equals(first) || BlockPos.ORIGIN.equals(second)) {
-            return 48.0;
-        }
-        return Math.max(16.0, Math.sqrt(first.getSquaredDistance(second)));
-    }
-
-    private TrainSpawnDirection betterrailwaysystem$resolveConfiguredDirection(World world) {
-        BlockPos railPos = pos.up();
-        BlockState railState = world.getBlockState(railPos);
-        if (!railState.isIn(net.minecraft.registry.tag.BlockTags.RAILS)) {
-            railPos = pos;
-            railState = world.getBlockState(railPos);
-        }
-        return resolveDirection(railState, direction);
     }
 
     private void applySpawnVelocity(MinecartEntity minecart, TrainSpawnDirection resolvedDirection) {
