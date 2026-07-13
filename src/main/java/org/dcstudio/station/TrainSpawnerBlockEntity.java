@@ -134,17 +134,15 @@ public final class TrainSpawnerBlockEntity extends BlockEntity {
     @Override
     public void readNbt(NbtCompound nbt, RegistryWrapper.WrapperLookup registries) {
         super.readNbt(nbt, registries);
-        cityName = sanitizeText(nbt.getString("CityName"), 32, "Default");
-        lineId = sanitizeText(nbt.getString("LineId"), 32, "L1");
-        lineThemeColor = LineThemeColor.fromString(nbt.getString("LineThemeColor")).serializedName();
-        direction = TrainSpawnDirection.fromString(nbt.getString("Direction"));
-        targetTrainCount = nbt.contains("TargetTrainCount")
-                ? MathHelper.clamp(nbt.getInt("TargetTrainCount"), 1, 64)
-                : 1;
-        redstoneControlled = nbt.getBoolean("RedstoneControlled");
-        circularLine = nbt.getBoolean("CircularLine");
-        cooldownTicks = nbt.contains("CooldownTicks") ? nbt.getInt("CooldownTicks") : 20;
-        wasPowered = nbt.getBoolean("WasPowered");
+        cityName = sanitizeText(nbt.getString("CityName", ""), 32, "Default");
+        lineId = sanitizeText(nbt.getString("LineId", ""), 32, "L1");
+        lineThemeColor = LineThemeColor.fromString(nbt.getString("LineThemeColor", "")).serializedName();
+        direction = TrainSpawnDirection.fromString(nbt.getString("Direction", ""));
+        targetTrainCount = MathHelper.clamp(nbt.getInt("TargetTrainCount", 1), 1, 64);
+        redstoneControlled = nbt.getBoolean("RedstoneControlled", false);
+        circularLine = nbt.getBoolean("CircularLine", false);
+        cooldownTicks = nbt.getInt("CooldownTicks", 20);
+        wasPowered = nbt.getBoolean("WasPowered", false);
     }
 
     @Override

@@ -123,7 +123,7 @@ public final class StationAnnouncementOverlay {
                 return null;
             }
 
-            currentImageTexture = new NativeImageBackedTexture(image);
+            currentImageTexture = new NativeImageBackedTexture(() -> "BetterRailwaySystem station image", image);
             currentImageTexture.setFilter(true, false);
             currentImageId = Identifier.of("betterrailwaysystem", "station_image_dynamic");
             MinecraftClient.getInstance().getTextureManager().registerTexture(currentImageId, currentImageTexture);

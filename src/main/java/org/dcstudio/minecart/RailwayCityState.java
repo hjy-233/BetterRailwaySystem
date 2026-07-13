@@ -1,13 +1,10 @@
 package org.dcstudio.minecart;
 
+import com.mojang.serialization.Codec;
 import net.minecraft.datafixer.DataFixTypes;
-import net.minecraft.nbt.NbtCompound;
-import net.minecraft.nbt.NbtElement;
-import net.minecraft.nbt.NbtList;
-import net.minecraft.nbt.NbtString;
-import net.minecraft.registry.RegistryWrapper;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.world.PersistentState;
+import net.minecraft.world.PersistentStateType;
 
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -16,23 +13,26 @@ import java.util.Set;
 // 记录世界中已创建的城市名。
 public final class RailwayCityState extends PersistentState {
     public static final String STATE_ID = "betterrailwaysystem_cities";
-    public static final Type<RailwayCityState> TYPE = new Type<>(
+    private static final Codec<RailwayCityState> CODEC = Codec.STRING.listOf()
+            .fieldOf("Cities")
+            .xmap(RailwayCityState::fromCities, RailwayCityState::getCities)
+            .codec();
+    public static final PersistentStateType<RailwayCityState> TYPE = new PersistentStateType<>(
+            STATE_ID,
             RailwayCityState::new,
-            RailwayCityState::fromNbt,
+            CODEC,
             DataFixTypes.SAVED_DATA_MAP_DATA
     );
 
     private final Set<String> cities = new LinkedHashSet<>();
 
     public static RailwayCityState get(ServerWorld world) {
-        return world.getPersistentStateManager().getOrCreate(TYPE, STATE_ID);
+        return world.getPersistentStateManager().getOrCreate(TYPE);
     }
 
-    private static RailwayCityState fromNbt(NbtCompound nbt, RegistryWrapper.WrapperLookup registries) {
+    private static RailwayCityState fromCities(List<String> cities) {
         RailwayCityState state = new RailwayCityState();
-        NbtList list = nbt.getList("Cities", NbtElement.STRING_TYPE);
-        for (int index = 0; index < list.size(); index++) {
-            String city = list.getString(index);
+        for (String city : cities) {
             if (!city.isBlank()) {
                 state.cities.add(city);
             }
@@ -51,15 +51,5 @@ public final class RailwayCityState extends PersistentState {
 
     public List<String> getCities() {
         return List.copyOf(cities);
-    }
-
-    @Override
-    public NbtCompound writeNbt(NbtCompound nbt, RegistryWrapper.WrapperLookup registries) {
-        NbtList list = new NbtList();
-        for (String city : cities) {
-            list.add(NbtString.of(city));
-        }
-        nbt.put("Cities", list);
-        return nbt;
     }
 }

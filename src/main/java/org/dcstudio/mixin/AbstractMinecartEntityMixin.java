@@ -389,31 +389,31 @@ public abstract class AbstractMinecartEntityMixin implements BetterRailwaySystem
 
     @Inject(method = "readCustomDataFromNbt", at = @At("TAIL"))
     private void betterrailwaysystem$readMinecartData(NbtCompound nbt, CallbackInfo ci) {
-        betterrailwaysystem$activeSpeedLimitBps = nbt.contains("BetterRailwaySystemSpeedLimit") ? nbt.getDouble("BetterRailwaySystemSpeedLimit") : -1.0;
-        betterrailwaysystem$cityName = nbt.getString("BetterRailwaySystemCityName");
-        betterrailwaysystem$lineId = nbt.getString("BetterRailwaySystemLineId");
-        betterrailwaysystem$lineThemeColor = LineThemeColor.fromString(nbt.getString("BetterRailwaySystemLineThemeColor")).serializedName();
-        betterrailwaysystem$circularLine = nbt.getBoolean("BetterRailwaySystemCircularLine");
-        betterrailwaysystem$leftOriginSpawner = nbt.getBoolean("BetterRailwaySystemLeftOriginSpawner");
-        betterrailwaysystem$circularLineRecorded = nbt.getBoolean("BetterRailwaySystemCircularRecorded");
-        betterrailwaysystem$lineDirection = TrainSpawnDirection.fromString(nbt.getString("BetterRailwaySystemLineDirection"));
-        betterrailwaysystem$currentStation = nbt.getString("BetterRailwaySystemCurrentStation");
-        betterrailwaysystem$nextStation = nbt.getString("BetterRailwaySystemNextStation");
-        betterrailwaysystem$waitingAtStopRail = nbt.getBoolean("BetterRailwaySystemWaitingStop");
-        betterrailwaysystem$stopDwellTicksRemaining = nbt.getInt("BetterRailwaySystemStopDwell");
-        betterrailwaysystem$stopWaitMode = StopRailWaitMode.fromString(nbt.getString("BetterRailwaySystemStopWaitMode"));
-        betterrailwaysystem$pendingStopRailPos = nbt.contains("BetterRailwaySystemStopPos") ? BlockPos.fromLong(nbt.getLong("BetterRailwaySystemStopPos")) : null;
-        betterrailwaysystem$originSpawnerPos = nbt.contains("BetterRailwaySystemOriginSpawnerPos") ? BlockPos.fromLong(nbt.getLong("BetterRailwaySystemOriginSpawnerPos")) : null;
+        betterrailwaysystem$activeSpeedLimitBps = nbt.getDouble("BetterRailwaySystemSpeedLimit", -1.0);
+        betterrailwaysystem$cityName = nbt.getString("BetterRailwaySystemCityName", "");
+        betterrailwaysystem$lineId = nbt.getString("BetterRailwaySystemLineId", "");
+        betterrailwaysystem$lineThemeColor = LineThemeColor.fromString(nbt.getString("BetterRailwaySystemLineThemeColor", "")).serializedName();
+        betterrailwaysystem$circularLine = nbt.getBoolean("BetterRailwaySystemCircularLine", false);
+        betterrailwaysystem$leftOriginSpawner = nbt.getBoolean("BetterRailwaySystemLeftOriginSpawner", false);
+        betterrailwaysystem$circularLineRecorded = nbt.getBoolean("BetterRailwaySystemCircularRecorded", false);
+        betterrailwaysystem$lineDirection = TrainSpawnDirection.fromString(nbt.getString("BetterRailwaySystemLineDirection", ""));
+        betterrailwaysystem$currentStation = nbt.getString("BetterRailwaySystemCurrentStation", "");
+        betterrailwaysystem$nextStation = nbt.getString("BetterRailwaySystemNextStation", "");
+        betterrailwaysystem$waitingAtStopRail = nbt.getBoolean("BetterRailwaySystemWaitingStop", false);
+        betterrailwaysystem$stopDwellTicksRemaining = nbt.getInt("BetterRailwaySystemStopDwell", 0);
+        betterrailwaysystem$stopWaitMode = StopRailWaitMode.fromString(nbt.getString("BetterRailwaySystemStopWaitMode", ""));
+        betterrailwaysystem$pendingStopRailPos = nbt.contains("BetterRailwaySystemStopPos") ? BlockPos.fromLong(nbt.getLong("BetterRailwaySystemStopPos", 0L)) : null;
+        betterrailwaysystem$originSpawnerPos = nbt.contains("BetterRailwaySystemOriginSpawnerPos") ? BlockPos.fromLong(nbt.getLong("BetterRailwaySystemOriginSpawnerPos", 0L)) : null;
         betterrailwaysystem$visitedStations.clear();
         betterrailwaysystem$visitedStationPositions.clear();
-        net.minecraft.nbt.NbtList list = nbt.getList("BetterRailwaySystemVisitedStations", net.minecraft.nbt.NbtElement.STRING_TYPE);
+        net.minecraft.nbt.NbtList list = nbt.getListOrEmpty("BetterRailwaySystemVisitedStations");
         for (int index = 0; index < list.size(); index++) {
-            String station = list.getString(index);
+            String station = list.getString(index, "");
             if (!station.isBlank()) {
                 betterrailwaysystem$visitedStations.add(station);
             }
         }
-        net.minecraft.nbt.NbtList posList = nbt.getList("BetterRailwaySystemVisitedStationPositions", net.minecraft.nbt.NbtElement.LONG_TYPE);
+        net.minecraft.nbt.NbtList posList = nbt.getListOrEmpty("BetterRailwaySystemVisitedStationPositions");
         for (int index = 0; index < posList.size(); index++) {
             if (posList.get(index) instanceof net.minecraft.nbt.AbstractNbtNumber nbtNumber) {
                 betterrailwaysystem$visitedStationPositions.add(BlockPos.fromLong(nbtNumber.longValue()));
