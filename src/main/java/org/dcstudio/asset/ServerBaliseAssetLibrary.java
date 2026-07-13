@@ -3,12 +3,12 @@ package org.dcstudio.asset;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import net.fabricmc.loader.api.FabricLoader;
-import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
 import org.dcstudio.BetterRailwaySystem;
 import org.dcstudio.network.BaliseAssetCatalogPayload;
 import org.dcstudio.network.BaliseAssetSyncCompletePayload;
+import org.dcstudio.network.BetterRailwaySystemNetworking;
 import org.dcstudio.network.SyncBaliseAssetPayload;
 import org.dcstudio.network.UploadBaliseAssetPayload;
 
@@ -100,10 +100,10 @@ public final class ServerBaliseAssetLibrary {
         initialize();
         List<BaliseAssetCatalogPayload.Entry> imageFiles = listEntries(BaliseAssetType.IMAGE);
         List<BaliseAssetCatalogPayload.Entry> soundFiles = listEntries(BaliseAssetType.SOUND);
-        ServerPlayNetworking.send(player, new BaliseAssetCatalogPayload(imageFiles, soundFiles));
+        BetterRailwaySystemNetworking.send(player, BaliseAssetCatalogPayload.ID, new BaliseAssetCatalogPayload(imageFiles, soundFiles));
         sendFiles(player, BaliseAssetType.IMAGE, imageFiles);
         sendFiles(player, BaliseAssetType.SOUND, soundFiles);
-        ServerPlayNetworking.send(player, BaliseAssetSyncCompletePayload.INSTANCE);
+        BetterRailwaySystemNetworking.send(player, BaliseAssetSyncCompletePayload.ID, BaliseAssetSyncCompletePayload.INSTANCE);
     }
 
     private static void sendFiles(ServerPlayerEntity player, BaliseAssetType assetType, List<BaliseAssetCatalogPayload.Entry> fileEntries) {
@@ -117,7 +117,7 @@ public final class ServerBaliseAssetLibrary {
                     int start = chunkIndex * CHUNK_SIZE;
                     int end = Math.min(data.length, start + CHUNK_SIZE);
                     byte[] chunk = java.util.Arrays.copyOfRange(data, start, end);
-                    ServerPlayNetworking.send(player, new SyncBaliseAssetPayload(
+                    BetterRailwaySystemNetworking.send(player, SyncBaliseAssetPayload.ID, new SyncBaliseAssetPayload(
                             assetType.serializedName(),
                             fileName,
                             chunkIndex,

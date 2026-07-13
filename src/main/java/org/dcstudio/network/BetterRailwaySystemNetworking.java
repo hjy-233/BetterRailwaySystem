@@ -1,9 +1,10 @@
 package org.dcstudio.network;
 
+import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
-import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.block.entity.BlockEntity;
+import net.minecraft.network.PacketByteBuf;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
@@ -25,32 +26,20 @@ public final class BetterRailwaySystemNetworking {
     }
 
     public static void register() {
-        PayloadTypeRegistry.playS2C().register(OpenBaliseEditorPayload.ID, OpenBaliseEditorPayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(StationAnnouncementPayload.ID, StationAnnouncementPayload.CODEC);
-        PayloadTypeRegistry.playC2S().register(SaveBalisePayload.ID, SaveBalisePayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(OpenStopRailEditorPayload.ID, OpenStopRailEditorPayload.CODEC);
-        PayloadTypeRegistry.playC2S().register(SaveStopRailPayload.ID, SaveStopRailPayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(OpenTrainSpawnerEditorPayload.ID, OpenTrainSpawnerEditorPayload.CODEC);
-        PayloadTypeRegistry.playC2S().register(SaveTrainSpawnerPayload.ID, SaveTrainSpawnerPayload.CODEC);
-        PayloadTypeRegistry.playC2S().register(UploadBaliseAssetPayload.ID, UploadBaliseAssetPayload.CODEC);
-        PayloadTypeRegistry.playC2S().register(RequestBaliseAssetSyncPayload.ID, RequestBaliseAssetSyncPayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(BaliseAssetCatalogPayload.ID, BaliseAssetCatalogPayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(SyncBaliseAssetPayload.ID, SyncBaliseAssetPayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(BaliseAssetSyncCompletePayload.ID, BaliseAssetSyncCompletePayload.CODEC);
-        ServerPlayNetworking.registerGlobalReceiver(SaveBalisePayload.ID, (payload, context) ->
-                context.server().execute(() -> saveBalise(context.player(), payload))
+        ServerPlayNetworking.registerGlobalReceiver(SaveBalisePayload.ID, (server, player, handler, buf, responseSender) ->
+                server.execute(() -> saveBalise(player, SaveBalisePayload.read(buf)))
         );
-        ServerPlayNetworking.registerGlobalReceiver(SaveStopRailPayload.ID, (payload, context) ->
-                context.server().execute(() -> saveStopRail(context.player(), payload))
+        ServerPlayNetworking.registerGlobalReceiver(SaveStopRailPayload.ID, (server, player, handler, buf, responseSender) ->
+                server.execute(() -> saveStopRail(player, SaveStopRailPayload.read(buf)))
         );
-        ServerPlayNetworking.registerGlobalReceiver(SaveTrainSpawnerPayload.ID, (payload, context) ->
-                context.server().execute(() -> saveTrainSpawner(context.player(), payload))
+        ServerPlayNetworking.registerGlobalReceiver(SaveTrainSpawnerPayload.ID, (server, player, handler, buf, responseSender) ->
+                server.execute(() -> saveTrainSpawner(player, SaveTrainSpawnerPayload.read(buf)))
         );
-        ServerPlayNetworking.registerGlobalReceiver(UploadBaliseAssetPayload.ID, (payload, context) ->
-                context.server().execute(() -> uploadBaliseAsset(context.player(), payload))
+        ServerPlayNetworking.registerGlobalReceiver(UploadBaliseAssetPayload.ID, (server, player, handler, buf, responseSender) ->
+                server.execute(() -> uploadBaliseAsset(player, UploadBaliseAssetPayload.read(buf)))
         );
-        ServerPlayNetworking.registerGlobalReceiver(RequestBaliseAssetSyncPayload.ID, (payload, context) ->
-                context.server().execute(() -> requestBaliseAssetSync(context.player()))
+        ServerPlayNetworking.registerGlobalReceiver(RequestBaliseAssetSyncPayload.ID, (server, player, handler, buf, responseSender) ->
+                server.execute(() -> requestBaliseAssetSync(player))
         );
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) ->
                 server.execute(() -> ServerBaliseAssetLibrary.syncToPlayer(handler.player))
@@ -58,7 +47,7 @@ public final class BetterRailwaySystemNetworking {
     }
 
     public static void openEditor(ServerPlayerEntity player, RailwayBaliseBlockEntity blockEntity) {
-        ServerPlayNetworking.send(player, new OpenBaliseEditorPayload(
+        send(player, OpenBaliseEditorPayload.ID, new OpenBaliseEditorPayload(
                 blockEntity.getPos(),
                 blockEntity.getMode().serializedName(),
                 blockEntity.getTitleText(),
@@ -79,7 +68,7 @@ public final class BetterRailwaySystemNetworking {
     }
 
     public static void sendAnnouncement(ServerPlayerEntity player, String titleText, String subtitleText, RailwayBaliseBlockEntity blockEntity) {
-        ServerPlayNetworking.send(player, new StationAnnouncementPayload(
+        send(player, StationAnnouncementPayload.ID, new StationAnnouncementPayload(
                 titleText,
                 subtitleText,
                 blockEntity.getSoundId(),
@@ -90,7 +79,7 @@ public final class BetterRailwaySystemNetworking {
     }
 
     public static void openStopRailEditor(ServerPlayerEntity player, StopRailBlockEntity blockEntity) {
-        ServerPlayNetworking.send(player, new OpenStopRailEditorPayload(
+        send(player, OpenStopRailEditorPayload.ID, new OpenStopRailEditorPayload(
                 blockEntity.getPos(),
                 blockEntity.getStopDistance(),
                 blockEntity.getDwellSeconds(),
@@ -108,7 +97,7 @@ public final class BetterRailwaySystemNetworking {
                 }
             }
         }
-        ServerPlayNetworking.send(player, new OpenTrainSpawnerEditorPayload(
+        send(player, OpenTrainSpawnerEditorPayload.ID, new OpenTrainSpawnerEditorPayload(
                 blockEntity.getPos(),
                 blockEntity.getLineId(),
                 blockEntity.getLineThemeColor(),
@@ -178,5 +167,47 @@ public final class BetterRailwaySystemNetworking {
 
     private static boolean betterrailwaysystem$canModifyServerAssets(ServerPlayerEntity player) {
         return player.getServer() == null || !player.getServer().isDedicated() || player.hasPermissionLevel(2);
+    }
+
+    public static void send(ServerPlayerEntity player, net.minecraft.util.Identifier channel, OpenBaliseEditorPayload payload) {
+        PacketByteBuf buf = PacketByteBufs.create();
+        payload.write(buf);
+        ServerPlayNetworking.send(player, channel, buf);
+    }
+
+    public static void send(ServerPlayerEntity player, net.minecraft.util.Identifier channel, StationAnnouncementPayload payload) {
+        PacketByteBuf buf = PacketByteBufs.create();
+        payload.write(buf);
+        ServerPlayNetworking.send(player, channel, buf);
+    }
+
+    public static void send(ServerPlayerEntity player, net.minecraft.util.Identifier channel, OpenStopRailEditorPayload payload) {
+        PacketByteBuf buf = PacketByteBufs.create();
+        payload.write(buf);
+        ServerPlayNetworking.send(player, channel, buf);
+    }
+
+    public static void send(ServerPlayerEntity player, net.minecraft.util.Identifier channel, OpenTrainSpawnerEditorPayload payload) {
+        PacketByteBuf buf = PacketByteBufs.create();
+        payload.write(buf);
+        ServerPlayNetworking.send(player, channel, buf);
+    }
+
+    public static void send(ServerPlayerEntity player, net.minecraft.util.Identifier channel, BaliseAssetCatalogPayload payload) {
+        PacketByteBuf buf = PacketByteBufs.create();
+        payload.write(buf);
+        ServerPlayNetworking.send(player, channel, buf);
+    }
+
+    public static void send(ServerPlayerEntity player, net.minecraft.util.Identifier channel, SyncBaliseAssetPayload payload) {
+        PacketByteBuf buf = PacketByteBufs.create();
+        payload.write(buf);
+        ServerPlayNetworking.send(player, channel, buf);
+    }
+
+    public static void send(ServerPlayerEntity player, net.minecraft.util.Identifier channel, BaliseAssetSyncCompletePayload payload) {
+        PacketByteBuf buf = PacketByteBufs.create();
+        payload.write(buf);
+        ServerPlayNetworking.send(player, channel, buf);
     }
 }

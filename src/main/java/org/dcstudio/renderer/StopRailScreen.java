@@ -1,6 +1,7 @@
 package org.dcstudio.renderer;
 
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
@@ -101,7 +102,10 @@ public final class StopRailScreen extends Screen {
         int stopDistance = betterrailwaysystem$parseInt(stopDistanceField.getText(), payload.stopDistance(), 1, 128);
         int dwellSeconds = betterrailwaysystem$parseInt(dwellSecondsField.getText(), payload.dwellSeconds(), 0, 600);
         StopRailWaitMode waitMode = waitModeButton.getValue();
-        ClientPlayNetworking.send(new SaveStopRailPayload(payload.pos(), stopDistance, dwellSeconds, waitMode.serializedName()));
+        SaveStopRailPayload savePayload = new SaveStopRailPayload(payload.pos(), stopDistance, dwellSeconds, waitMode.serializedName());
+        net.minecraft.network.PacketByteBuf buf = PacketByteBufs.create();
+        savePayload.write(buf);
+        ClientPlayNetworking.send(SaveStopRailPayload.ID, buf);
         close();
     }
 

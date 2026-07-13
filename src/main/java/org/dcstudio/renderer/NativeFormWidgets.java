@@ -32,15 +32,12 @@ final class NativeFormWidgets {
             setX(left);
         }
 
-        @Override
         protected void drawMenuListBackground(DrawContext context) {
         }
 
-        @Override
         protected void drawHeaderAndFooterSeparators(DrawContext context) {
         }
 
-        @Override
         protected void renderDecorations(DrawContext context, int mouseX, int mouseY) {
         }
 
@@ -49,7 +46,6 @@ final class NativeFormWidgets {
             return rowWidth;
         }
 
-        @Override
         protected int getScrollbarX() {
             return left + rowWidth + 8;
         }
@@ -61,7 +57,6 @@ final class NativeFormWidgets {
 
         public void setEntries(List<RowEntry> entries) {
             replaceEntries(entries);
-            refreshScroll();
         }
     }
 

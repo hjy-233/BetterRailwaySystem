@@ -1,13 +1,10 @@
 package org.dcstudio.network;
 
-import net.minecraft.network.RegistryByteBuf;
-import net.minecraft.network.codec.PacketCodec;
-import net.minecraft.network.codec.PacketCodecs;
-import net.minecraft.network.packet.CustomPayload;
+import net.minecraft.network.PacketByteBuf;
+import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import org.dcstudio.BetterRailwaySystem;
 
-import java.util.ArrayList;
 import java.util.List;
 
 // 服务端打开发车器编辑界面的数据包。
@@ -19,28 +16,30 @@ public record OpenTrainSpawnerEditorPayload(
         int targetTrainCount,
         int flags,
         List<String> cityOptions
-) implements CustomPayload {
-    public static final Id<OpenTrainSpawnerEditorPayload> ID = new Id<>(BetterRailwaySystem.id("open_train_spawner_editor"));
-    public static final PacketCodec<RegistryByteBuf, OpenTrainSpawnerEditorPayload> CODEC = PacketCodec.of(
-            (payload, buf) -> {
-                BlockPos.PACKET_CODEC.encode(buf, payload.pos);
-                PacketCodecs.STRING.encode(buf, payload.lineId);
-                PacketCodecs.STRING.encode(buf, payload.lineThemeColor);
-                PacketCodecs.STRING.encode(buf, payload.direction);
-                PacketCodecs.VAR_INT.encode(buf, payload.targetTrainCount);
-                PacketCodecs.VAR_INT.encode(buf, payload.flags);
-                PacketCodecs.collection(ArrayList::new, PacketCodecs.STRING).encode(buf, new ArrayList<>(payload.cityOptions));
-            },
-            buf -> new OpenTrainSpawnerEditorPayload(
-                    BlockPos.PACKET_CODEC.decode(buf),
-                    PacketCodecs.STRING.decode(buf),
-                    PacketCodecs.STRING.decode(buf),
-                    PacketCodecs.STRING.decode(buf),
-                    PacketCodecs.VAR_INT.decode(buf),
-                    PacketCodecs.VAR_INT.decode(buf),
-                    new ArrayList<>(PacketCodecs.collection(ArrayList::new, PacketCodecs.STRING).decode(buf))
-            )
-    );
+) {
+    public static final Identifier ID = BetterRailwaySystem.id("open_train_spawner_editor");
+
+    public static OpenTrainSpawnerEditorPayload read(PacketByteBuf buf) {
+        return new OpenTrainSpawnerEditorPayload(
+                buf.readBlockPos(),
+                buf.readString(),
+                buf.readString(),
+                buf.readString(),
+                buf.readVarInt(),
+                buf.readVarInt(),
+                PacketBufHelper.readStringList(buf)
+        );
+    }
+
+    public void write(PacketByteBuf buf) {
+        buf.writeBlockPos(pos);
+        buf.writeString(lineId);
+        buf.writeString(lineThemeColor);
+        buf.writeString(direction);
+        buf.writeVarInt(targetTrainCount);
+        buf.writeVarInt(flags);
+        PacketBufHelper.writeStringList(buf, cityOptions);
+    }
 
     public boolean redstoneControlled() {
         return (flags & 1) != 0;
@@ -48,10 +47,5 @@ public record OpenTrainSpawnerEditorPayload(
 
     public boolean circularLine() {
         return (flags & 2) != 0;
-    }
-
-    @Override
-    public Id<? extends CustomPayload> getId() {
-        return ID;
     }
 }

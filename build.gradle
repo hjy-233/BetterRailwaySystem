@@ -54,6 +54,11 @@ repositories {
         url = "https://maven.terraformersmc.com/releases/"
     }
 
+    maven {
+        name = "Nucleoid"
+        url = "https://maven.nucleoid.xyz/"
+    }
+
     // 国内镜像，兜底用
     maven {
         name = "Aliyun Public"
@@ -76,11 +81,9 @@ dependencies {
     modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
 
     modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
-    modImplementation("me.shedaniel.cloth:cloth-config-fabric:15.0.140") {
+    modImplementation("me.shedaniel.cloth:cloth-config-fabric:${project.cloth_config_version}") {
         exclude(group: "net.fabricmc.fabric-api")
     }
-    modCompileOnly "com.terraformersmc:modmenu:11.0.4"
-    modRuntimeOnly "com.terraformersmc:modmenu:11.0.4"
 }
 
 processResources {
@@ -96,7 +99,7 @@ processResources {
     }
 }
 
-def targetJavaVersion = 21
+def targetJavaVersion = Integer.parseInt(project.java_version)
 tasks.withType(JavaCompile).configureEach {
     // ensure that the encoding is set to UTF-8, no matter what the system default is
     // this fixes some edge cases with special characters not displaying correctly

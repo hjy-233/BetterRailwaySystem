@@ -1,18 +1,18 @@
 package org.dcstudio.network;
 
-import net.minecraft.network.RegistryByteBuf;
-import net.minecraft.network.codec.PacketCodec;
-import net.minecraft.network.packet.CustomPayload;
+import net.minecraft.network.PacketByteBuf;
+import net.minecraft.util.Identifier;
 import org.dcstudio.BetterRailwaySystem;
 
 // 客户端请求服务端广播当前素材库快照。
-public record RequestBaliseAssetSyncPayload() implements CustomPayload {
+public record RequestBaliseAssetSyncPayload() {
     public static final RequestBaliseAssetSyncPayload INSTANCE = new RequestBaliseAssetSyncPayload();
-    public static final Id<RequestBaliseAssetSyncPayload> ID = new Id<>(BetterRailwaySystem.id("request_balise_asset_sync"));
-    public static final PacketCodec<RegistryByteBuf, RequestBaliseAssetSyncPayload> CODEC = PacketCodec.unit(INSTANCE);
+    public static final Identifier ID = BetterRailwaySystem.id("request_balise_asset_sync");
 
-    @Override
-    public Id<? extends CustomPayload> getId() {
-        return ID;
+    public static RequestBaliseAssetSyncPayload read(PacketByteBuf buf) {
+        return INSTANCE;
+    }
+
+    public void write(PacketByteBuf buf) {
     }
 }

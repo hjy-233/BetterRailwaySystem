@@ -1,9 +1,7 @@
 package org.dcstudio.network;
 
-import net.minecraft.network.RegistryByteBuf;
-import net.minecraft.network.codec.PacketCodec;
-import net.minecraft.network.codec.PacketCodecs;
-import net.minecraft.network.packet.CustomPayload;
+import net.minecraft.network.PacketByteBuf;
+import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import org.dcstudio.BetterRailwaySystem;
 
@@ -13,22 +11,17 @@ public record OpenStopRailEditorPayload(
         int stopDistance,
         int dwellSeconds,
         String waitMode
-) implements CustomPayload {
-    public static final Id<OpenStopRailEditorPayload> ID = new Id<>(BetterRailwaySystem.id("open_stop_rail_editor"));
-    public static final PacketCodec<RegistryByteBuf, OpenStopRailEditorPayload> CODEC = PacketCodec.tuple(
-            BlockPos.PACKET_CODEC,
-            OpenStopRailEditorPayload::pos,
-            PacketCodecs.VAR_INT,
-            OpenStopRailEditorPayload::stopDistance,
-            PacketCodecs.VAR_INT,
-            OpenStopRailEditorPayload::dwellSeconds,
-            PacketCodecs.STRING,
-            OpenStopRailEditorPayload::waitMode,
-            OpenStopRailEditorPayload::new
-    );
+) {
+    public static final Identifier ID = BetterRailwaySystem.id("open_stop_rail_editor");
 
-    @Override
-    public Id<? extends CustomPayload> getId() {
-        return ID;
+    public static OpenStopRailEditorPayload read(PacketByteBuf buf) {
+        return new OpenStopRailEditorPayload(buf.readBlockPos(), buf.readVarInt(), buf.readVarInt(), buf.readString());
+    }
+
+    public void write(PacketByteBuf buf) {
+        buf.writeBlockPos(pos);
+        buf.writeVarInt(stopDistance);
+        buf.writeVarInt(dwellSeconds);
+        buf.writeString(waitMode);
     }
 }

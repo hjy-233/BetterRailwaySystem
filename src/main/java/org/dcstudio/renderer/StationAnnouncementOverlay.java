@@ -55,7 +55,7 @@ public final class StationAnnouncementOverlay {
         }
     }
 
-    private static void render(DrawContext context, net.minecraft.client.render.RenderTickCounter tickCounter) {
+    private static void render(DrawContext context, float tickDelta) {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.player == null) {
             betterrailwaysystem$clearAnnouncement(client);

@@ -23,7 +23,7 @@ public final class TrainCollectorBlock extends BlockWithEntity implements BlockE
     }
 
     @Override
-    protected BlockRenderType getRenderType(BlockState state) {
+    public BlockRenderType getRenderType(BlockState state) {
         return BlockRenderType.MODEL;
     }
 

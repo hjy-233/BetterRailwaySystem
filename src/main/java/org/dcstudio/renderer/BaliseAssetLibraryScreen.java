@@ -1,6 +1,7 @@
 package org.dcstudio.renderer;
 
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
@@ -173,7 +174,9 @@ public final class BaliseAssetLibraryScreen extends Screen {
             statusText = Text.translatable("screen.betterrailwaysystem.refresh_failed");
             return;
         }
-        ClientPlayNetworking.send(RequestBaliseAssetSyncPayload.INSTANCE);
+        net.minecraft.network.PacketByteBuf requestBuf = PacketByteBufs.create();
+        RequestBaliseAssetSyncPayload.INSTANCE.write(requestBuf);
+        ClientPlayNetworking.send(RequestBaliseAssetSyncPayload.ID, requestBuf);
         statusText = Text.translatable("screen.betterrailwaysystem.sync_requested");
     }
 
@@ -292,13 +295,16 @@ public final class BaliseAssetLibraryScreen extends Screen {
                 int start = chunkIndex * CHUNK_SIZE;
                 int end = Math.min(uploadEntry.data().length, start + CHUNK_SIZE);
                 byte[] chunk = java.util.Arrays.copyOfRange(uploadEntry.data(), start, end);
-                ClientPlayNetworking.send(new UploadBaliseAssetPayload(
+                UploadBaliseAssetPayload payload = new UploadBaliseAssetPayload(
                         uploadEntry.assetType().serializedName(),
                         uploadEntry.fileName(),
                         chunkIndex,
                         chunkCount,
                         chunk
-                ));
+                );
+                net.minecraft.network.PacketByteBuf uploadBuf = PacketByteBufs.create();
+                payload.write(uploadBuf);
+                ClientPlayNetworking.send(UploadBaliseAssetPayload.ID, uploadBuf);
             }
         }
         return true;
@@ -333,7 +339,6 @@ public final class BaliseAssetLibraryScreen extends Screen {
             return width - 10;
         }
 
-        @Override
         protected int getScrollbarX() {
             return left + width - 6;
         }
@@ -343,15 +348,12 @@ public final class BaliseAssetLibraryScreen extends Screen {
             return left;
         }
 
-        @Override
         protected void drawMenuListBackground(DrawContext context) {
         }
 
-        @Override
         protected void drawHeaderAndFooterSeparators(DrawContext context) {
         }
 
-        @Override
         protected void renderDecorations(DrawContext context, int mouseX, int mouseY) {
         }
 

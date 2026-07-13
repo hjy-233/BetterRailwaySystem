@@ -1,9 +1,7 @@
 package org.dcstudio.network;
 
-import net.minecraft.network.RegistryByteBuf;
-import net.minecraft.network.codec.PacketCodec;
-import net.minecraft.network.codec.PacketCodecs;
-import net.minecraft.network.packet.CustomPayload;
+import net.minecraft.network.PacketByteBuf;
+import net.minecraft.util.Identifier;
 import org.dcstudio.BetterRailwaySystem;
 
 // 服务端向客户端下发素材文件分块。
@@ -13,24 +11,24 @@ public record SyncBaliseAssetPayload(
         int chunkIndex,
         int chunkCount,
         byte[] data
-) implements CustomPayload {
-    public static final Id<SyncBaliseAssetPayload> ID = new Id<>(BetterRailwaySystem.id("sync_balise_asset"));
-    public static final PacketCodec<RegistryByteBuf, SyncBaliseAssetPayload> CODEC = PacketCodec.tuple(
-            PacketCodecs.STRING,
-            SyncBaliseAssetPayload::assetType,
-            PacketCodecs.STRING,
-            SyncBaliseAssetPayload::fileName,
-            PacketCodecs.VAR_INT,
-            SyncBaliseAssetPayload::chunkIndex,
-            PacketCodecs.VAR_INT,
-            SyncBaliseAssetPayload::chunkCount,
-            PacketCodecs.BYTE_ARRAY,
-            SyncBaliseAssetPayload::data,
-            SyncBaliseAssetPayload::new
-    );
+) {
+    public static final Identifier ID = BetterRailwaySystem.id("sync_balise_asset");
 
-    @Override
-    public Id<? extends CustomPayload> getId() {
-        return ID;
+    public static SyncBaliseAssetPayload read(PacketByteBuf buf) {
+        return new SyncBaliseAssetPayload(
+                buf.readString(),
+                buf.readString(),
+                buf.readVarInt(),
+                buf.readVarInt(),
+                buf.readByteArray()
+        );
+    }
+
+    public void write(PacketByteBuf buf) {
+        buf.writeString(assetType);
+        buf.writeString(fileName);
+        buf.writeVarInt(chunkIndex);
+        buf.writeVarInt(chunkCount);
+        buf.writeByteArray(data);
     }
 }

@@ -5,7 +5,6 @@ import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtElement;
 import net.minecraft.nbt.NbtList;
 import net.minecraft.nbt.NbtString;
-import net.minecraft.registry.RegistryWrapper;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.world.PersistentState;
 
@@ -28,7 +27,7 @@ public final class RailwayCityState extends PersistentState {
         return world.getPersistentStateManager().getOrCreate(TYPE, STATE_ID);
     }
 
-    private static RailwayCityState fromNbt(NbtCompound nbt, RegistryWrapper.WrapperLookup registries) {
+    private static RailwayCityState fromNbt(NbtCompound nbt) {
         RailwayCityState state = new RailwayCityState();
         NbtList list = nbt.getList("Cities", NbtElement.STRING_TYPE);
         for (int index = 0; index < list.size(); index++) {
@@ -54,7 +53,7 @@ public final class RailwayCityState extends PersistentState {
     }
 
     @Override
-    public NbtCompound writeNbt(NbtCompound nbt, RegistryWrapper.WrapperLookup registries) {
+    public NbtCompound writeNbt(NbtCompound nbt) {
         NbtList list = new NbtList();
         for (String city : cities) {
             list.add(NbtString.of(city));

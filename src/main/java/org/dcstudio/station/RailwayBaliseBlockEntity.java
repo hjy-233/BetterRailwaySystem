@@ -7,7 +7,6 @@ import net.minecraft.nbt.NbtCompound;
 import net.minecraft.network.listener.ClientPlayPacketListener;
 import net.minecraft.network.packet.Packet;
 import net.minecraft.network.packet.s2c.play.BlockEntityUpdateS2CPacket;
-import net.minecraft.registry.RegistryWrapper;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
 import org.dcstudio.BetterRailwaySystem;
@@ -107,8 +106,8 @@ public final class RailwayBaliseBlockEntity extends BlockEntity {
     }
 
     @Override
-    protected void writeNbt(NbtCompound nbt, RegistryWrapper.WrapperLookup registries) {
-        super.writeNbt(nbt, registries);
+    protected void writeNbt(NbtCompound nbt) {
+        super.writeNbt(nbt);
         nbt.putString("Mode", mode.serializedName());
         nbt.putString("TitleText", titleText);
         nbt.putString("SubtitleText", subtitleText);
@@ -123,8 +122,8 @@ public final class RailwayBaliseBlockEntity extends BlockEntity {
     }
 
     @Override
-    public void readNbt(NbtCompound nbt, RegistryWrapper.WrapperLookup registries) {
-        super.readNbt(nbt, registries);
+    public void readNbt(NbtCompound nbt) {
+        super.readNbt(nbt);
         mode = BaliseMode.fromString(nbt.getString("Mode"));
         titleText = sanitizeText(nbt.getString("TitleText"), 64);
         subtitleText = sanitizeText(nbt.getString("SubtitleText"), 96);
@@ -143,8 +142,8 @@ public final class RailwayBaliseBlockEntity extends BlockEntity {
     }
 
     @Override
-    public NbtCompound toInitialChunkDataNbt(RegistryWrapper.WrapperLookup registries) {
-        return createNbt(registries);
+    public NbtCompound toInitialChunkDataNbt() {
+        return createNbt();
     }
 
     @Override

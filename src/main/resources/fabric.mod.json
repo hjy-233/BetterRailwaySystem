@@ -16,9 +16,6 @@
     "client": [
       "org.dcstudio.client.BetterRailwaySystemClient"
     ],
-    "modmenu": [
-      "org.dcstudio.client.BetterRailwaySystemModMenu"
-    ],
     "main": [
       "org.dcstudio.BetterRailwaySystem"
     ]
@@ -34,8 +31,5 @@
     "fabricloader": ">=${loader_version}",
     "fabric-api": "*",
     "minecraft": "${minecraft_version}"
-  },
-  "suggests": {
-    "modmenu": "*"
   }
 }

@@ -1,9 +1,7 @@
 package org.dcstudio.network;
 
-import net.minecraft.network.RegistryByteBuf;
-import net.minecraft.network.codec.PacketCodec;
-import net.minecraft.network.codec.PacketCodecs;
-import net.minecraft.network.packet.CustomPayload;
+import net.minecraft.network.PacketByteBuf;
+import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import org.dcstudio.BetterRailwaySystem;
 import org.dcstudio.minecart.BaliseMode;
@@ -22,45 +20,42 @@ public record OpenBaliseEditorPayload(
         boolean keepImageUntilNextBalise,
         boolean updateBossBar,
         double speedLimitBps
-) implements CustomPayload {
-    public static final Id<OpenBaliseEditorPayload> ID = new Id<>(BetterRailwaySystem.id("open_balise_editor"));
-    public static final PacketCodec<RegistryByteBuf, OpenBaliseEditorPayload> CODEC = PacketCodec.of(
-            (payload, buf) -> {
-                BlockPos.PACKET_CODEC.encode(buf, payload.pos);
-                PacketCodecs.STRING.encode(buf, payload.mode);
-                PacketCodecs.STRING.encode(buf, payload.titleText);
-                PacketCodecs.STRING.encode(buf, payload.subtitleText);
-                PacketCodecs.STRING.encode(buf, payload.currentStation);
-                PacketCodecs.STRING.encode(buf, payload.nextStation);
-                PacketCodecs.STRING.encode(buf, payload.soundId);
-                PacketCodecs.STRING.encode(buf, payload.imageId);
-                PacketCodecs.VAR_INT.encode(buf, payload.imageDurationSeconds);
-                PacketCodecs.BOOL.encode(buf, payload.keepImageUntilNextBalise);
-                PacketCodecs.BOOL.encode(buf, payload.updateBossBar);
-                PacketCodecs.DOUBLE.encode(buf, payload.speedLimitBps);
-            },
-            buf -> new OpenBaliseEditorPayload(
-                    BlockPos.PACKET_CODEC.decode(buf),
-                    PacketCodecs.STRING.decode(buf),
-                    PacketCodecs.STRING.decode(buf),
-                    PacketCodecs.STRING.decode(buf),
-                    PacketCodecs.STRING.decode(buf),
-                    PacketCodecs.STRING.decode(buf),
-                    PacketCodecs.STRING.decode(buf),
-                    PacketCodecs.STRING.decode(buf),
-                    PacketCodecs.VAR_INT.decode(buf),
-                    PacketCodecs.BOOL.decode(buf),
-                    PacketCodecs.BOOL.decode(buf),
-                    PacketCodecs.DOUBLE.decode(buf)
-            )
-    );
+) {
+    public static final Identifier ID = BetterRailwaySystem.id("open_balise_editor");
+
+    public static OpenBaliseEditorPayload read(PacketByteBuf buf) {
+        return new OpenBaliseEditorPayload(
+                buf.readBlockPos(),
+                buf.readString(),
+                buf.readString(),
+                buf.readString(),
+                buf.readString(),
+                buf.readString(),
+                buf.readString(),
+                buf.readString(),
+                buf.readVarInt(),
+                buf.readBoolean(),
+                buf.readBoolean(),
+                buf.readDouble()
+        );
+    }
+
+    public void write(PacketByteBuf buf) {
+        buf.writeBlockPos(pos);
+        buf.writeString(mode);
+        buf.writeString(titleText);
+        buf.writeString(subtitleText);
+        buf.writeString(currentStation);
+        buf.writeString(nextStation);
+        buf.writeString(soundId);
+        buf.writeString(imageId);
+        buf.writeVarInt(imageDurationSeconds);
+        buf.writeBoolean(keepImageUntilNextBalise);
+        buf.writeBoolean(updateBossBar);
+        buf.writeDouble(speedLimitBps);
+    }
 
     public BaliseMode parsedMode() {
         return BaliseMode.fromString(mode);
-    }
-
-    @Override
-    public Id<? extends CustomPayload> getId() {
-        return ID;
     }
 }

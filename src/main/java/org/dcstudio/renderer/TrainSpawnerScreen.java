@@ -1,6 +1,7 @@
 package org.dcstudio.renderer;
 
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
@@ -100,7 +101,7 @@ public final class TrainSpawnerScreen extends Screen {
         if (directionOptions.isEmpty()) {
             directionOptions = new ArrayList<>(List.of(TrainSpawnDirection.fromString(payload.direction())));
         }
-        fallbackDirection = directionOptions.getFirst();
+        fallbackDirection = directionOptions.get(0);
         TrainSpawnDirection initialDirection = TrainSpawnDirection.fromString(payload.direction());
         if (!directionOptions.contains(initialDirection)) {
             initialDirection = fallbackDirection;
@@ -114,12 +115,10 @@ public final class TrainSpawnerScreen extends Screen {
         redstoneCheckbox = CheckboxWidget.builder(Text.translatable("screen.betterrailwaysystem.redstone_spawn_enabled"), textRenderer)
                 .pos(0, 0)
                 .checked(payload.redstoneControlled())
-                .maxWidth(contentWidth - 24)
                 .build();
         circularCheckbox = CheckboxWidget.builder(Text.translatable("screen.betterrailwaysystem.circular_line"), textRenderer)
                 .pos(0, 0)
                 .checked(payload.circularLine())
-                .maxWidth(contentWidth - 24)
                 .build();
 
         formList = NativeFormWidgets.createFormList(client, contentX, contentY, contentWidth, footerY - contentY - 8, contentWidth - 16);
@@ -166,7 +165,7 @@ public final class TrainSpawnerScreen extends Screen {
 
     private List<String> betterrailwaysystem$buildCityOptions() {
         List<String> options = new ArrayList<>(payload.cityOptions());
-        String fallbackCity = options.isEmpty() ? "Default" : options.getFirst();
+        String fallbackCity = options.isEmpty() ? "Default" : options.get(0);
         if (!options.contains(fallbackCity) && !fallbackCity.isBlank()) {
             options.add(fallbackCity);
         }
@@ -181,7 +180,7 @@ public final class TrainSpawnerScreen extends Screen {
         LineThemeColor lineThemeColor = lineColorButton.getValue() == null ? LineThemeColor.BLUE : lineColorButton.getValue();
         TrainSpawnDirection direction = directionButton.getValue() == null ? fallbackDirection : directionButton.getValue();
         int flags = (redstoneCheckbox.isChecked() ? 1 : 0) | (circularCheckbox.isChecked() ? 2 : 0);
-        ClientPlayNetworking.send(new SaveTrainSpawnerPayload(
+        SaveTrainSpawnerPayload savePayload = new SaveTrainSpawnerPayload(
                 payload.pos(),
                 cityName,
                 lineIdField.getText().trim(),
@@ -189,7 +188,10 @@ public final class TrainSpawnerScreen extends Screen {
                 direction.serializedName(),
                 targetTrainCount,
                 flags
-        ));
+        );
+        net.minecraft.network.PacketByteBuf buf = PacketByteBufs.create();
+        savePayload.write(buf);
+        ClientPlayNetworking.send(SaveTrainSpawnerPayload.ID, buf);
         close();
     }
 

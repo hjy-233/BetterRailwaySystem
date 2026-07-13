@@ -1,6 +1,7 @@
 package org.dcstudio.renderer;
 
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
@@ -84,12 +85,10 @@ public final class RailwayBaliseScreen extends Screen {
         keepImageCheckbox = CheckboxWidget.builder(Text.translatable("screen.betterrailwaysystem.keep_image_until_next_balise"), textRenderer)
                 .pos(0, 0)
                 .checked(payload.keepImageUntilNextBalise())
-                .maxWidth(contentWidth - 24)
                 .build();
         bossBarCheckbox = CheckboxWidget.builder(Text.translatable("screen.betterrailwaysystem.update_bossbar"), textRenderer)
                 .pos(0, 0)
                 .checked(payload.updateBossBar())
-                .maxWidth(contentWidth - 24)
                 .build();
 
         ButtonWidget soundLibraryButton = ButtonWidget.builder(Text.translatable("screen.betterrailwaysystem.open_sound_library"), button -> {
@@ -198,7 +197,7 @@ public final class RailwayBaliseScreen extends Screen {
         BaliseMode mode = modeButton.getValue() == null ? payload.parsedMode() : modeButton.getValue();
         int durationSeconds = betterrailwaysystem$parseInt(durationField.getText(), payload.imageDurationSeconds(), 1, 60);
         double speedLimit = betterrailwaysystem$parseDouble(speedLimitField.getText(), payload.speedLimitBps(), 0.01, 128.0);
-        ClientPlayNetworking.send(new SaveBalisePayload(
+        SaveBalisePayload savePayload = new SaveBalisePayload(
                 payload.pos(),
                 mode.serializedName(),
                 titleField.getText(),
@@ -211,7 +210,10 @@ public final class RailwayBaliseScreen extends Screen {
                 keepImageCheckbox.isChecked(),
                 bossBarCheckbox.isChecked(),
                 speedLimit
-        ));
+        );
+        net.minecraft.network.PacketByteBuf buf = PacketByteBufs.create();
+        savePayload.write(buf);
+        ClientPlayNetworking.send(SaveBalisePayload.ID, buf);
         close();
     }
 

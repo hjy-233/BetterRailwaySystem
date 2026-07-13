@@ -11,7 +11,6 @@ import net.minecraft.nbt.NbtCompound;
 import net.minecraft.network.listener.ClientPlayPacketListener;
 import net.minecraft.network.packet.Packet;
 import net.minecraft.network.packet.s2c.play.BlockEntityUpdateS2CPacket;
-import net.minecraft.registry.RegistryWrapper;
 import net.minecraft.world.World;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.BlockPos;
@@ -117,8 +116,8 @@ public final class TrainSpawnerBlockEntity extends BlockEntity {
     }
 
     @Override
-    protected void writeNbt(NbtCompound nbt, RegistryWrapper.WrapperLookup registries) {
-        super.writeNbt(nbt, registries);
+    protected void writeNbt(NbtCompound nbt) {
+        super.writeNbt(nbt);
         nbt.putString("CityName", cityName);
         nbt.putString("LineId", lineId);
         nbt.putString("LineThemeColor", lineThemeColor);
@@ -131,8 +130,8 @@ public final class TrainSpawnerBlockEntity extends BlockEntity {
     }
 
     @Override
-    public void readNbt(NbtCompound nbt, RegistryWrapper.WrapperLookup registries) {
-        super.readNbt(nbt, registries);
+    public void readNbt(NbtCompound nbt) {
+        super.readNbt(nbt);
         cityName = sanitizeText(nbt.getString("CityName"), 32, "Default");
         lineId = sanitizeText(nbt.getString("LineId"), 32, "L1");
         lineThemeColor = LineThemeColor.fromString(nbt.getString("LineThemeColor")).serializedName();
@@ -147,8 +146,8 @@ public final class TrainSpawnerBlockEntity extends BlockEntity {
     }
 
     @Override
-    public NbtCompound toInitialChunkDataNbt(RegistryWrapper.WrapperLookup registries) {
-        return createNbt(registries);
+    public NbtCompound toInitialChunkDataNbt() {
+        return createNbt();
     }
 
     @Override
@@ -294,7 +293,7 @@ public final class TrainSpawnerBlockEntity extends BlockEntity {
         if (preferredDirection == TrainSpawnDirection.BACKWARD && availableDirections.size() > 1) {
             return availableDirections.get(1);
         }
-        return availableDirections.getFirst();
+        return availableDirections.get(0);
     }
 
     private String sanitizeText(String value, int maxLength, String fallback) {

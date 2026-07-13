@@ -1,6 +1,7 @@
 package org.dcstudio.client.network;
 
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import net.minecraft.client.MinecraftClient;
 import org.dcstudio.asset.BaliseAssetType;
 import org.dcstudio.client.asset.BaliseAssetLibrary;
 import org.dcstudio.network.BaliseAssetCatalogPayload;
@@ -21,32 +22,39 @@ public final class BetterRailwaySystemClientNetworking {
     }
 
     public static void register() {
-        ClientPlayNetworking.registerGlobalReceiver(OpenBaliseEditorPayload.ID, (payload, context) ->
-                context.client().execute(() -> context.client().setScreen(new RailwayBaliseScreen(payload)))
+        ClientPlayNetworking.registerGlobalReceiver(OpenBaliseEditorPayload.ID, (client, handler, buf, responseSender) ->
+                betterrailwaysystem$execute(client, () -> client.setScreen(new RailwayBaliseScreen(OpenBaliseEditorPayload.read(buf))))
         );
-        ClientPlayNetworking.registerGlobalReceiver(OpenStopRailEditorPayload.ID, (payload, context) ->
-                context.client().execute(() -> context.client().setScreen(new StopRailScreen(payload)))
+        ClientPlayNetworking.registerGlobalReceiver(OpenStopRailEditorPayload.ID, (client, handler, buf, responseSender) ->
+                betterrailwaysystem$execute(client, () -> client.setScreen(new StopRailScreen(OpenStopRailEditorPayload.read(buf))))
         );
-        ClientPlayNetworking.registerGlobalReceiver(OpenTrainSpawnerEditorPayload.ID, (payload, context) ->
-                context.client().execute(() -> context.client().setScreen(new TrainSpawnerScreen(payload)))
+        ClientPlayNetworking.registerGlobalReceiver(OpenTrainSpawnerEditorPayload.ID, (client, handler, buf, responseSender) ->
+                betterrailwaysystem$execute(client, () -> client.setScreen(new TrainSpawnerScreen(OpenTrainSpawnerEditorPayload.read(buf))))
         );
-        ClientPlayNetworking.registerGlobalReceiver(StationAnnouncementPayload.ID, (payload, context) ->
-                context.client().execute(() -> StationAnnouncementOverlay.show(payload, context.player()))
+        ClientPlayNetworking.registerGlobalReceiver(StationAnnouncementPayload.ID, (client, handler, buf, responseSender) ->
+                betterrailwaysystem$execute(client, () -> StationAnnouncementOverlay.show(StationAnnouncementPayload.read(buf), client.player))
         );
-        ClientPlayNetworking.registerGlobalReceiver(BaliseAssetCatalogPayload.ID, (payload, context) ->
-                context.client().execute(() -> BaliseAssetLibrary.applyServerCatalog(payload.imageFiles(), payload.soundFiles()))
+        ClientPlayNetworking.registerGlobalReceiver(BaliseAssetCatalogPayload.ID, (client, handler, buf, responseSender) -> {
+            BaliseAssetCatalogPayload payload = BaliseAssetCatalogPayload.read(buf);
+            betterrailwaysystem$execute(client, () -> BaliseAssetLibrary.applyServerCatalog(payload.imageFiles(), payload.soundFiles()));
+        }
         );
-        ClientPlayNetworking.registerGlobalReceiver(SyncBaliseAssetPayload.ID, (payload, context) ->
-                context.client().execute(() -> BaliseAssetLibrary.acceptSyncedChunk(
+        ClientPlayNetworking.registerGlobalReceiver(SyncBaliseAssetPayload.ID, (client, handler, buf, responseSender) -> {
+            SyncBaliseAssetPayload payload = SyncBaliseAssetPayload.read(buf);
+            betterrailwaysystem$execute(client, () -> BaliseAssetLibrary.acceptSyncedChunk(
                         BaliseAssetType.fromString(payload.assetType()),
                         payload.fileName(),
                         payload.chunkIndex(),
                         payload.chunkCount(),
                         payload.data()
-                ))
+                ));
+        });
+        ClientPlayNetworking.registerGlobalReceiver(BaliseAssetSyncCompletePayload.ID, (client, handler, buf, responseSender) ->
+                betterrailwaysystem$execute(client, () -> BaliseAssetLibrary.finalizeServerSync(client))
         );
-        ClientPlayNetworking.registerGlobalReceiver(BaliseAssetSyncCompletePayload.ID, (payload, context) ->
-                context.client().execute(() -> BaliseAssetLibrary.finalizeServerSync(context.client()))
-        );
+    }
+
+    private static void betterrailwaysystem$execute(MinecraftClient client, Runnable runnable) {
+        client.execute(runnable);
     }
 }
