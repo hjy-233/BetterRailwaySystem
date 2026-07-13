@@ -125,10 +125,8 @@ public final class StationAnnouncementOverlay {
 
             currentImageTexture = new NativeImageBackedTexture(image);
             currentImageTexture.setFilter(true, false);
-            currentImageId = MinecraftClient.getInstance().getTextureManager().registerDynamicTexture(
-                    "betterrailwaysystem_station_image",
-                    currentImageTexture
-            );
+            currentImageId = Identifier.of("betterrailwaysystem", "station_image_dynamic");
+            MinecraftClient.getInstance().getTextureManager().registerTexture(currentImageId, currentImageTexture);
             return currentImageId;
         } catch (IOException ignored) {
             return null;
