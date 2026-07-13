@@ -2,11 +2,11 @@ package org.dcstudio.renderer;
 
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gl.RenderPipelines;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.AlwaysSelectedEntryListWidget;
 import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.client.render.RenderLayer;
 import net.minecraft.client.texture.NativeImage;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
@@ -255,7 +255,7 @@ public final class BaliseAssetLibraryScreen extends Screen {
         int drawHeight = Math.max(1, Math.round(previewImageHeight * scale));
         int drawX = x + (width - drawWidth) / 2;
         int drawY = y + (height - drawHeight) / 2;
-        context.drawTexture(RenderLayer::getGuiTextured, identifier, drawX, drawY, drawWidth, drawHeight, 0, 0, previewImageWidth, previewImageHeight, previewImageWidth, previewImageHeight);
+        context.drawTexture(RenderPipelines.GUI_TEXTURED, identifier, drawX, drawY, 0.0F, 0.0F, drawWidth, drawHeight, previewImageWidth, previewImageHeight, previewImageWidth, previewImageHeight);
     }
 
     private void betterrailwaysystem$drawWrappedCentered(DrawContext context, String raw, int x, int y, int width, int height, int color) {

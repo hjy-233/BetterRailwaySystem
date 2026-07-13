@@ -13,6 +13,8 @@ import net.minecraft.network.listener.ClientPlayPacketListener;
 import net.minecraft.network.packet.Packet;
 import net.minecraft.network.packet.s2c.play.BlockEntityUpdateS2CPacket;
 import net.minecraft.registry.RegistryWrapper;
+import net.minecraft.storage.ReadView;
+import net.minecraft.storage.WriteView;
 import net.minecraft.world.World;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.BlockPos;
@@ -118,31 +120,31 @@ public final class TrainSpawnerBlockEntity extends BlockEntity {
     }
 
     @Override
-    protected void writeNbt(NbtCompound nbt, RegistryWrapper.WrapperLookup registries) {
-        super.writeNbt(nbt, registries);
-        nbt.putString("CityName", cityName);
-        nbt.putString("LineId", lineId);
-        nbt.putString("LineThemeColor", lineThemeColor);
-        nbt.putString("Direction", direction.serializedName());
-        nbt.putInt("TargetTrainCount", targetTrainCount);
-        nbt.putBoolean("RedstoneControlled", redstoneControlled);
-        nbt.putBoolean("CircularLine", circularLine);
-        nbt.putInt("CooldownTicks", cooldownTicks);
-        nbt.putBoolean("WasPowered", wasPowered);
+    protected void writeData(WriteView view) {
+        super.writeData(view);
+        view.putString("CityName", cityName);
+        view.putString("LineId", lineId);
+        view.putString("LineThemeColor", lineThemeColor);
+        view.putString("Direction", direction.serializedName());
+        view.putInt("TargetTrainCount", targetTrainCount);
+        view.putBoolean("RedstoneControlled", redstoneControlled);
+        view.putBoolean("CircularLine", circularLine);
+        view.putInt("CooldownTicks", cooldownTicks);
+        view.putBoolean("WasPowered", wasPowered);
     }
 
     @Override
-    public void readNbt(NbtCompound nbt, RegistryWrapper.WrapperLookup registries) {
-        super.readNbt(nbt, registries);
-        cityName = sanitizeText(nbt.getString("CityName", ""), 32, "Default");
-        lineId = sanitizeText(nbt.getString("LineId", ""), 32, "L1");
-        lineThemeColor = LineThemeColor.fromString(nbt.getString("LineThemeColor", "")).serializedName();
-        direction = TrainSpawnDirection.fromString(nbt.getString("Direction", ""));
-        targetTrainCount = MathHelper.clamp(nbt.getInt("TargetTrainCount", 1), 1, 64);
-        redstoneControlled = nbt.getBoolean("RedstoneControlled", false);
-        circularLine = nbt.getBoolean("CircularLine", false);
-        cooldownTicks = nbt.getInt("CooldownTicks", 20);
-        wasPowered = nbt.getBoolean("WasPowered", false);
+    protected void readData(ReadView view) {
+        super.readData(view);
+        cityName = sanitizeText(view.getString("CityName", ""), 32, "Default");
+        lineId = sanitizeText(view.getString("LineId", ""), 32, "L1");
+        lineThemeColor = LineThemeColor.fromString(view.getString("LineThemeColor", "")).serializedName();
+        direction = TrainSpawnDirection.fromString(view.getString("Direction", ""));
+        targetTrainCount = MathHelper.clamp(view.getInt("TargetTrainCount", 1), 1, 64);
+        redstoneControlled = view.getBoolean("RedstoneControlled", false);
+        circularLine = view.getBoolean("CircularLine", false);
+        cooldownTicks = view.getInt("CooldownTicks", 20);
+        wasPowered = view.getBoolean("WasPowered", false);
     }
 
     @Override
