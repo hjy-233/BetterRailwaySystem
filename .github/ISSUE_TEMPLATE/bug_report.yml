@@ -1,0 +1,104 @@
+name: Bug report
+description: Report a crash, broken behavior, or gameplay regression.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before reporting
+      options:
+        - label: I tested with the latest matching BetterRailwaySystem build for my Minecraft version.
+          required: true
+        - label: I searched existing issues and did not find the same problem.
+          required: true
+  - type: input
+    id: mod-version
+    attributes:
+      label: BetterRailwaySystem jar
+      description: Use the exact jar file name.
+      placeholder: BetterRailwaySystem-20260713-1309-mc1.21.11.jar
+    validations:
+      required: true
+  - type: input
+    id: minecraft-version
+    attributes:
+      label: Minecraft version
+      placeholder: "1.21.11"
+    validations:
+      required: true
+  - type: input
+    id: loader-version
+    attributes:
+      label: Fabric Loader version
+      placeholder: "0.16.14"
+    validations:
+      required: true
+  - type: input
+    id: fabric-api-version
+    attributes:
+      label: Fabric API version
+      placeholder: "0.141.4+1.21.11"
+    validations:
+      required: true
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Environment
+      options:
+        - Singleplayer
+        - Dedicated server
+        - LAN
+        - Client connected to a modded server
+        - Client connected to a vanilla server
+    validations:
+      required: true
+  - type: textarea
+    id: other-mods
+    attributes:
+      label: Other mods
+      description: Paste the mod list, or say "none".
+      placeholder: Fabric API, Cloth Config, Mod Menu, ...
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Be specific enough that the issue can be reproduced in a fresh world.
+      placeholder: |
+        1. Place ...
+        2. Ride a minecart through ...
+        3. The game crashes / the train stops / ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      placeholder: What should happen?
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      placeholder: What happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or crash report
+      description: Paste the relevant log, crash report, or upload the file.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots or video
+      description: Optional, but very useful for UI and railway layout issues.
+    validations:
+      required: false
