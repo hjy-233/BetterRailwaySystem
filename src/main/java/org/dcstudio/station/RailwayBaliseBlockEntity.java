@@ -8,6 +8,8 @@ import net.minecraft.network.listener.ClientPlayPacketListener;
 import net.minecraft.network.packet.Packet;
 import net.minecraft.network.packet.s2c.play.BlockEntityUpdateS2CPacket;
 import net.minecraft.registry.RegistryWrapper;
+import net.minecraft.storage.ReadView;
+import net.minecraft.storage.WriteView;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
 import org.dcstudio.BetterRailwaySystem;
@@ -107,39 +109,39 @@ public final class RailwayBaliseBlockEntity extends BlockEntity {
     }
 
     @Override
-    protected void writeNbt(NbtCompound nbt, RegistryWrapper.WrapperLookup registries) {
-        super.writeNbt(nbt, registries);
-        nbt.putString("Mode", mode.serializedName());
-        nbt.putString("TitleText", titleText);
-        nbt.putString("SubtitleText", subtitleText);
-        nbt.putString("CurrentStation", currentStation);
-        nbt.putString("NextStation", nextStation);
-        nbt.putString("SoundId", soundId);
-        nbt.putString("ImageId", imageId);
-        nbt.putInt("ImageDurationSeconds", imageDurationSeconds);
-        nbt.putBoolean("KeepImageUntilNextBalise", keepImageUntilNextBalise);
-        nbt.putBoolean("UpdateBossBar", updateBossBar);
-        nbt.putDouble("SpeedLimitBps", speedLimitBps);
+    protected void writeData(WriteView view) {
+        super.writeData(view);
+        view.putString("Mode", mode.serializedName());
+        view.putString("TitleText", titleText);
+        view.putString("SubtitleText", subtitleText);
+        view.putString("CurrentStation", currentStation);
+        view.putString("NextStation", nextStation);
+        view.putString("SoundId", soundId);
+        view.putString("ImageId", imageId);
+        view.putInt("ImageDurationSeconds", imageDurationSeconds);
+        view.putBoolean("KeepImageUntilNextBalise", keepImageUntilNextBalise);
+        view.putBoolean("UpdateBossBar", updateBossBar);
+        view.putDouble("SpeedLimitBps", speedLimitBps);
     }
 
     @Override
-    public void readNbt(NbtCompound nbt, RegistryWrapper.WrapperLookup registries) {
-        super.readNbt(nbt, registries);
-        mode = BaliseMode.fromString(nbt.getString("Mode", ""));
-        titleText = sanitizeText(nbt.getString("TitleText", ""), 64);
-        subtitleText = sanitizeText(nbt.getString("SubtitleText", ""), 96);
-        currentStation = sanitizeText(nbt.getString("CurrentStation", ""), 64);
-        nextStation = sanitizeText(nbt.getString("NextStation", ""), 64);
-        if (currentStation.isBlank() && nbt.contains("StationName")) {
-            currentStation = sanitizeText(nbt.getString("StationName", ""), 64);
+    protected void readData(ReadView view) {
+        super.readData(view);
+        mode = BaliseMode.fromString(view.getString("Mode", ""));
+        titleText = sanitizeText(view.getString("TitleText", ""), 64);
+        subtitleText = sanitizeText(view.getString("SubtitleText", ""), 96);
+        currentStation = sanitizeText(view.getString("CurrentStation", ""), 64);
+        nextStation = sanitizeText(view.getString("NextStation", ""), 64);
+        if (currentStation.isBlank() && view.getOptionalString("StationName").isPresent()) {
+            currentStation = sanitizeText(view.getString("StationName", ""), 64);
         }
-        soundId = sanitizeText(nbt.getString("SoundId", ""), 128);
-        imageId = sanitizeText(nbt.getString("ImageId", ""), 128);
-        int savedDuration = nbt.getInt("ImageDurationSeconds", 5);
+        soundId = sanitizeText(view.getString("SoundId", ""), 128);
+        imageId = sanitizeText(view.getString("ImageId", ""), 128);
+        int savedDuration = view.getInt("ImageDurationSeconds", 5);
         imageDurationSeconds = MathHelper.clamp(savedDuration, 1, 60);
-        keepImageUntilNextBalise = nbt.getBoolean("KeepImageUntilNextBalise", false);
-        updateBossBar = nbt.getBoolean("UpdateBossBar", true);
-        speedLimitBps = Math.max(0.01, nbt.getDouble("SpeedLimitBps", 4.0));
+        keepImageUntilNextBalise = view.getBoolean("KeepImageUntilNextBalise", false);
+        updateBossBar = view.getBoolean("UpdateBossBar", true);
+        speedLimitBps = Math.max(0.01, view.getDouble("SpeedLimitBps", 4.0));
     }
 
     @Override

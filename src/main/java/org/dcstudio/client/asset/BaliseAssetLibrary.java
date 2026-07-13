@@ -215,7 +215,7 @@ public final class BaliseAssetLibrary {
 
     private static void writePackMetadata() throws IOException {
         Map<String, Object> packSection = new LinkedHashMap<>();
-        packSection.put("pack_format", SharedConstants.getGameVersion().getResourceVersion(ResourceType.CLIENT_RESOURCES));
+        packSection.put("pack_format", SharedConstants.getGameVersion().packVersion(ResourceType.CLIENT_RESOURCES));
         packSection.put("description", "BetterRailwaySystem asset library");
 
         Map<String, Object> root = new LinkedHashMap<>();

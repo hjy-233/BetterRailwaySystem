@@ -8,6 +8,8 @@ import net.minecraft.network.listener.ClientPlayPacketListener;
 import net.minecraft.network.packet.Packet;
 import net.minecraft.network.packet.s2c.play.BlockEntityUpdateS2CPacket;
 import net.minecraft.registry.RegistryWrapper;
+import net.minecraft.storage.ReadView;
+import net.minecraft.storage.WriteView;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
 import org.dcstudio.BetterRailwaySystem;
@@ -47,19 +49,19 @@ public final class StopRailBlockEntity extends BlockEntity {
     }
 
     @Override
-    protected void writeNbt(NbtCompound nbt, RegistryWrapper.WrapperLookup registries) {
-        super.writeNbt(nbt, registries);
-        nbt.putInt("StopDistance", stopDistance);
-        nbt.putInt("DwellSeconds", dwellSeconds);
-        nbt.putString("WaitMode", waitMode.serializedName());
+    protected void writeData(WriteView view) {
+        super.writeData(view);
+        view.putInt("StopDistance", stopDistance);
+        view.putInt("DwellSeconds", dwellSeconds);
+        view.putString("WaitMode", waitMode.serializedName());
     }
 
     @Override
-    public void readNbt(NbtCompound nbt, RegistryWrapper.WrapperLookup registries) {
-        super.readNbt(nbt, registries);
-        stopDistance = MathHelper.clamp(nbt.getInt("StopDistance", 30), 1, 128);
-        dwellSeconds = MathHelper.clamp(nbt.getInt("DwellSeconds", 3), 0, 600);
-        waitMode = StopRailWaitMode.fromString(nbt.getString("WaitMode", ""));
+    protected void readData(ReadView view) {
+        super.readData(view);
+        stopDistance = MathHelper.clamp(view.getInt("StopDistance", 30), 1, 128);
+        dwellSeconds = MathHelper.clamp(view.getInt("DwellSeconds", 3), 0, 600);
+        waitMode = StopRailWaitMode.fromString(view.getString("WaitMode", ""));
     }
 
     @Override
