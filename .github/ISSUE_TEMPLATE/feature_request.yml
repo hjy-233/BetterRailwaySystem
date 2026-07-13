@@ -1,50 +1,50 @@
-name: Feature request
-description: Suggest a new railway, minecart, station, or UI feature.
-title: "[Feature]: "
+name: Feature request | 功能请求
+description: Suggest a new railway, minecart, station, or UI feature. | 建议新的铁路、矿车、车站或 UI 功能。
+title: "[Feature | 功能]: "
 labels:
-  - enhancement
+  - enhancement | 功能增强
 body:
   - type: textarea
     id: problem
     attributes:
-      label: Problem
-      description: What player or server workflow is currently painful or impossible?
-      placeholder: Describe the real use case, not only the implementation idea.
+      label: Problem | 问题
+      description: What player or server workflow is currently painful or impossible? | 当前哪些玩家或服务器流程不好用或无法实现？
+      placeholder: Describe the real use case, not only the implementation idea. | 描述真实使用场景，不只是实现想法。
     validations:
       required: true
   - type: textarea
     id: proposal
     attributes:
-      label: Proposed solution
-      description: What should BetterRailwaySystem do?
+      label: Proposed solution | 建议方案
+      description: What should BetterRailwaySystem do? | BetterRailwaySystem 应该怎么做？
     validations:
       required: true
   - type: textarea
     id: vanilla-compatibility
     attributes:
-      label: Vanilla compatibility
-      description: How should this interact with vanilla rails, minecarts, redstone, or existing worlds?
+      label: Vanilla compatibility | 原版兼容性
+      description: How should this interact with vanilla rails, minecarts, redstone, or existing worlds? | 它应该如何与原版铁轨、矿车、红石或已有世界交互？
     validations:
       required: true
   - type: dropdown
     id: area
     attributes:
-      label: Feature area
+      label: Feature area | 功能范围
       options:
-        - Minecart physics
-        - Railway blocks
-        - Station announcements
-        - Route map
-        - Asset library
-        - Server support
-        - Configuration
-        - Other
+        - Minecart physics | 矿车物理
+        - Railway blocks | 铁路方块
+        - Station announcements | 报站系统
+        - Route map | 线路图
+        - Asset library | 素材库
+        - Server support | 服务器支持
+        - Configuration | 配置
+        - Other | 其他
     validations:
       required: true
   - type: textarea
     id: alternatives
     attributes:
-      label: Alternatives considered
-      description: Optional. Include commands, datapacks, other mods, or manual workarounds.
+      label: Alternatives considered | 已考虑的替代方案
+      description: Optional. Include commands, datapacks, other mods, or manual workarounds. | 可选。包括指令、数据包、其他模组或手动绕过方案。
     validations:
       required: false
