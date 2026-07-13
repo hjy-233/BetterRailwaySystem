@@ -41,10 +41,6 @@ final class NativeFormWidgets {
         }
 
         @Override
-        protected void renderDecorations(DrawContext context, int mouseX, int mouseY) {
-        }
-
-        @Override
         public int getRowWidth() {
             return rowWidth;
         }
@@ -99,7 +95,11 @@ final class NativeFormWidgets {
         }
 
         @Override
-        public void render(DrawContext context, int index, int y, int x, int entryWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta) {
+        public void render(DrawContext context, int mouseX, int mouseY, boolean hovered, float tickDelta) {
+            int x = getX();
+            int y = getY();
+            int entryWidth = getWidth();
+            int entryHeight = getHeight();
             int textY = y + (entryHeight - 8) / 2;
             context.drawTextWithShadow(MinecraftClient.getInstance().textRenderer, label, x + 4, textY, 0xFFFFFF);
             int widgetX = x + labelWidth;
@@ -135,7 +135,11 @@ final class NativeFormWidgets {
         }
 
         @Override
-        public void render(DrawContext context, int index, int y, int x, int entryWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta) {
+        public void render(DrawContext context, int mouseX, int mouseY, boolean hovered, float tickDelta) {
+            int x = getX();
+            int y = getY();
+            int entryWidth = getWidth();
+            int entryHeight = getHeight();
             int textY = y + (entryHeight - 8) / 2;
             context.drawTextWithShadow(MinecraftClient.getInstance().textRenderer, label, x + 4, textY, 0xFFFFFF);
             int widgetY = y + 4;
@@ -167,7 +171,10 @@ final class NativeFormWidgets {
         }
 
         @Override
-        public void render(DrawContext context, int index, int y, int x, int entryWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta) {
+        public void render(DrawContext context, int mouseX, int mouseY, boolean hovered, float tickDelta) {
+            int x = getX();
+            int y = getY();
+            int entryWidth = getWidth();
             widget.setDimensionsAndPosition(Math.max(40, entryWidth - 8), 20, x + 4, y + 4);
             widget.render(context, mouseX, mouseY, tickDelta);
         }

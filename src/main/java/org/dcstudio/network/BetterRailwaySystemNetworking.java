@@ -101,7 +101,7 @@ public final class BetterRailwaySystemNetworking {
     public static void openTrainSpawnerEditor(ServerPlayerEntity player, TrainSpawnerBlockEntity blockEntity) {
         List<String> cityOptions = new java.util.ArrayList<>();
         cityOptions.add(blockEntity.getCityName());
-        if (player.getWorld() instanceof ServerWorld serverWorld) {
+        if (player.getEntityWorld() instanceof ServerWorld serverWorld) {
             for (String city : RailwayCityState.get(serverWorld).getCities()) {
                 if (!city.equals(blockEntity.getCityName())) {
                     cityOptions.add(city);
@@ -156,7 +156,7 @@ public final class BetterRailwaySystemNetworking {
         if (player.squaredDistanceTo(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5) > 64.0) {
             return null;
         }
-        BlockEntity blockEntity = player.getWorld().getBlockEntity(pos);
+        BlockEntity blockEntity = player.getEntityWorld().getBlockEntity(pos);
         return type.isInstance(blockEntity) ? type.cast(blockEntity) : null;
     }
 
@@ -172,11 +172,11 @@ public final class BetterRailwaySystemNetworking {
     }
 
     private static void requestBaliseAssetSync(ServerPlayerEntity player) {
-        ServerBaliseAssetLibrary.syncAllPlayers(player.getServer());
+        ServerBaliseAssetLibrary.syncAllPlayers(player.getEntityWorld().getServer());
         player.sendMessage(Text.translatable("screen.betterrailwaysystem.asset_sync_broadcast"), false);
     }
 
     private static boolean betterrailwaysystem$canModifyServerAssets(ServerPlayerEntity player) {
-        return player.getServer() == null || !player.getServer().isDedicated() || player.hasPermissionLevel(2);
+        return !player.getEntityWorld().getServer().isDedicated() || player.hasPermissionLevel(2);
     }
 }

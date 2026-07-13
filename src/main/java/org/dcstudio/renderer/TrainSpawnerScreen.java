@@ -148,7 +148,7 @@ public final class TrainSpawnerScreen extends Screen {
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
         super.renderBackground(context, mouseX, mouseY, delta);
         context.fill(panelX, panelY, panelX + panelWidth, panelY + panelHeight, 0xE0101010);
-        context.drawBorder(panelX, panelY, panelWidth, panelHeight, 0xFF8B8B8B);
+        context.drawStrokedRectangle(panelX, panelY, panelWidth, panelHeight, 0xFF8B8B8B);
         context.drawCenteredTextWithShadow(textRenderer, title, width / 2, panelY + 12, 0xFFFFFF);
         super.render(context, mouseX, mouseY, delta);
     }
