@@ -1,0 +1,69 @@
+name: Version request
+description: Request support for another Minecraft, Fabric Loader, Fabric API, or dependency version.
+title: "[Version Request]: "
+labels:
+  - version request
+body:
+  - type: input
+    id: minecraft-version
+    attributes:
+      label: Minecraft version
+      description: Which Minecraft version should be supported?
+      placeholder: "1.20.1 / 1.21.2 / 1.22.x"
+    validations:
+      required: true
+  - type: input
+    id: fabric-loader-version
+    attributes:
+      label: Fabric Loader version
+      description: Optional if you are not sure.
+      placeholder: "0.16.14"
+    validations:
+      required: false
+  - type: input
+    id: fabric-api-version
+    attributes:
+      label: Fabric API version
+      description: Optional if you are not sure.
+      placeholder: "0.128.2+1.21.5"
+    validations:
+      required: false
+  - type: textarea
+    id: dependency-versions
+    attributes:
+      label: Other dependency versions
+      description: Include Cloth Config, Mod Menu, or other required dependency versions if relevant.
+      placeholder: |
+        Cloth Config:
+        Mod Menu:
+        Other:
+    validations:
+      required: false
+  - type: dropdown
+    id: target
+    attributes:
+      label: Request type
+      options:
+        - New Minecraft version
+        - Different Fabric Loader version
+        - Different Fabric API version
+        - Dependency version update
+        - Backport
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: reason
+    attributes:
+      label: Why is this version needed?
+      description: Mention server requirements, modpack requirements, or compatibility blockers.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Current failure logs
+      description: If you already tried running the mod on this version, paste the launch/build error.
+      render: text
+    validations:
+      required: false
