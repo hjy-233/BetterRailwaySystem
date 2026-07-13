@@ -1,0 +1,50 @@
+name: Feature request
+description: Suggest a new railway, minecart, station, or UI feature.
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What player or server workflow is currently painful or impossible?
+      placeholder: Describe the real use case, not only the implementation idea.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What should BetterRailwaySystem do?
+    validations:
+      required: true
+  - type: textarea
+    id: vanilla-compatibility
+    attributes:
+      label: Vanilla compatibility
+      description: How should this interact with vanilla rails, minecarts, redstone, or existing worlds?
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Feature area
+      options:
+        - Minecart physics
+        - Railway blocks
+        - Station announcements
+        - Route map
+        - Asset library
+        - Server support
+        - Configuration
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Optional. Include commands, datapacks, other mods, or manual workarounds.
+    validations:
+      required: false

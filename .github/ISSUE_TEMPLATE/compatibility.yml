@@ -1,0 +1,56 @@
+name: Version compatibility issue
+description: Report a problem with a specific Minecraft/Fabric version branch.
+title: "[Compat]: "
+labels:
+  - compatibility
+body:
+  - type: input
+    id: minecraft-version
+    attributes:
+      label: Minecraft version
+      placeholder: "1.20.6 / 1.21.4 / 1.21.11"
+    validations:
+      required: true
+  - type: input
+    id: branch
+    attributes:
+      label: Expected branch
+      description: The branch or jar series you think should support this version.
+      placeholder: release/1.20.5-1.20.6
+    validations:
+      required: true
+  - type: input
+    id: mod-version
+    attributes:
+      label: BetterRailwaySystem jar
+      placeholder: BetterRailwaySystem-<version>-mc<mc-version>.jar
+    validations:
+      required: true
+  - type: input
+    id: loader-version
+    attributes:
+      label: Fabric Loader version
+      placeholder: "0.16.14"
+    validations:
+      required: true
+  - type: input
+    id: fabric-api-version
+    attributes:
+      label: Fabric API version
+      placeholder: "0.100.8+1.20.6"
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Compatibility problem
+      description: Explain whether it fails to launch, crashes in game, has missing classes, or behaves differently.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      render: text
+    validations:
+      required: true
