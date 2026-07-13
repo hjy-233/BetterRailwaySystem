@@ -84,12 +84,10 @@ public final class RailwayBaliseScreen extends Screen {
         keepImageCheckbox = CheckboxWidget.builder(Text.translatable("screen.betterrailwaysystem.keep_image_until_next_balise"), textRenderer)
                 .pos(0, 0)
                 .checked(payload.keepImageUntilNextBalise())
-                .maxWidth(contentWidth - 24)
                 .build();
         bossBarCheckbox = CheckboxWidget.builder(Text.translatable("screen.betterrailwaysystem.update_bossbar"), textRenderer)
                 .pos(0, 0)
                 .checked(payload.updateBossBar())
-                .maxWidth(contentWidth - 24)
                 .build();
 
         ButtonWidget soundLibraryButton = ButtonWidget.builder(Text.translatable("screen.betterrailwaysystem.open_sound_library"), button -> {

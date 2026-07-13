@@ -114,12 +114,10 @@ public final class TrainSpawnerScreen extends Screen {
         redstoneCheckbox = CheckboxWidget.builder(Text.translatable("screen.betterrailwaysystem.redstone_spawn_enabled"), textRenderer)
                 .pos(0, 0)
                 .checked(payload.redstoneControlled())
-                .maxWidth(contentWidth - 24)
                 .build();
         circularCheckbox = CheckboxWidget.builder(Text.translatable("screen.betterrailwaysystem.circular_line"), textRenderer)
                 .pos(0, 0)
                 .checked(payload.circularLine())
-                .maxWidth(contentWidth - 24)
                 .build();
 
         formList = NativeFormWidgets.createFormList(client, contentX, contentY, contentWidth, footerY - contentY - 8, contentWidth - 16);

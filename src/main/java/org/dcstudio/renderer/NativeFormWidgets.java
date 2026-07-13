@@ -61,7 +61,6 @@ final class NativeFormWidgets {
 
         public void setEntries(List<RowEntry> entries) {
             replaceEntries(entries);
-            refreshScroll();
         }
     }
 
