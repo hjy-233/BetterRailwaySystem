@@ -60,10 +60,10 @@ public final class RailwayBaliseScreen extends Screen {
 
         BaliseMode initialMode = payload.parsedMode();
 
-        modeButton = CyclingButtonWidget.<BaliseMode>builder(mode ->
-                        Text.translatable("screen.betterrailwaysystem.mode." + mode.serializedName()))
+        modeButton = CyclingButtonWidget.<BaliseMode>builder(
+                        mode -> Text.translatable("screen.betterrailwaysystem.mode." + mode.serializedName()),
+                        initialMode)
                 .values(List.of(BaliseMode.values()))
-                .initially(initialMode)
                 .build(0, 0, 130, 20, Text.empty(), (button, value) -> betterrailwaysystem$refreshRows());
 
         titleField = betterrailwaysystem$textField(payload.titleText(), 64);

@@ -73,12 +73,12 @@ public final class TrainSpawnerScreen extends Screen {
         targetCountField.setMaxLength(2);
         targetCountField.setTextPredicate(value -> value.isEmpty() || betterrailwaysystem$isIntInRange(value, 1, 64));
 
-        citySelectorButton = CyclingButtonWidget.<String>builder(value ->
-                        CREATE_CITY_VALUE.equals(value)
+        citySelectorButton = CyclingButtonWidget.<String>builder(
+                        value -> CREATE_CITY_VALUE.equals(value)
                                 ? Text.translatable("screen.betterrailwaysystem.city_mode.create")
-                                : Text.literal(value))
+                : Text.literal(value),
+                        initialCity)
                 .values(cityOptions)
-                .initially(initialCity)
                 .build(0, 0, 120, 20, Text.empty(), (button, value) -> {
                     boolean creating = CREATE_CITY_VALUE.equals(value);
                     cityField.setEditable(creating);
@@ -90,10 +90,10 @@ public final class TrainSpawnerScreen extends Screen {
         cityField.setEditable(false);
         cityField.active = false;
 
-        lineColorButton = CyclingButtonWidget.<LineThemeColor>builder(color ->
-                        Text.translatable("screen.betterrailwaysystem.line_theme_color." + color.serializedName()))
+        lineColorButton = CyclingButtonWidget.<LineThemeColor>builder(
+                        color -> Text.translatable("screen.betterrailwaysystem.line_theme_color." + color.serializedName()),
+                        LineThemeColor.fromString(payload.lineThemeColor()))
                 .values(List.of(LineThemeColor.values()))
-                .initially(LineThemeColor.fromString(payload.lineThemeColor()))
                 .build(0, 0, 120, 20, Text.empty());
 
         List<TrainSpawnDirection> directionOptions = betterrailwaysystem$detectDirections(payload);
@@ -105,10 +105,10 @@ public final class TrainSpawnerScreen extends Screen {
         if (!directionOptions.contains(initialDirection)) {
             initialDirection = fallbackDirection;
         }
-        directionButton = CyclingButtonWidget.<TrainSpawnDirection>builder(direction ->
-                        Text.translatable("screen.betterrailwaysystem.direction." + direction.serializedName()))
+        directionButton = CyclingButtonWidget.<TrainSpawnDirection>builder(
+                        direction -> Text.translatable("screen.betterrailwaysystem.direction." + direction.serializedName()),
+                        initialDirection)
                 .values(directionOptions)
-                .initially(initialDirection)
                 .build(0, 0, 120, 20, Text.empty());
 
         redstoneCheckbox = CheckboxWidget.builder(Text.translatable("screen.betterrailwaysystem.redstone_spawn_enabled"), textRenderer)

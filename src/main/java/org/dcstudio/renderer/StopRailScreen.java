@@ -54,10 +54,10 @@ public final class StopRailScreen extends Screen {
         dwellSecondsField.setMaxLength(4);
         dwellSecondsField.setTextPredicate(value -> value.isEmpty() || betterrailwaysystem$isIntInRange(value, 0, 600));
 
-        waitModeButton = CyclingButtonWidget.<StopRailWaitMode>builder(mode ->
-                        Text.translatable("screen.betterrailwaysystem.wait_mode." + mode.serializedName()))
+        waitModeButton = CyclingButtonWidget.<StopRailWaitMode>builder(
+                        mode -> Text.translatable("screen.betterrailwaysystem.wait_mode." + mode.serializedName()),
+                        StopRailWaitMode.fromString(payload.waitMode()))
                 .values(List.of(StopRailWaitMode.values()))
-                .initially(StopRailWaitMode.fromString(payload.waitMode()))
                 .build(0, 0, 100, 20, Text.empty());
 
         formList = NativeFormWidgets.createFormList(client, contentX, contentY, contentWidth, footerY - contentY - 8, contentWidth - 16);

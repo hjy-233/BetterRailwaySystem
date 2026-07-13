@@ -52,7 +52,7 @@ public final class StationAnnouncementOverlay {
 
         Identifier soundIdentifier = payload.soundId() == null || payload.soundId().isBlank() ? null : Identifier.tryParse(payload.soundId());
         if (soundIdentifier != null) {
-            client.getSoundManager().play(PositionedSoundInstance.master(net.minecraft.sound.SoundEvent.of(soundIdentifier), 1.0F));
+            client.getSoundManager().play(PositionedSoundInstance.ui(net.minecraft.sound.SoundEvent.of(soundIdentifier), 1.0F, 1.0F));
         }
     }
 
@@ -124,7 +124,6 @@ public final class StationAnnouncementOverlay {
             }
 
             currentImageTexture = new NativeImageBackedTexture(() -> "BetterRailwaySystem station image", image);
-            currentImageTexture.setFilter(true, false);
             currentImageId = Identifier.of("betterrailwaysystem", "station_image_dynamic");
             MinecraftClient.getInstance().getTextureManager().registerTexture(currentImageId, currentImageTexture);
             return currentImageId;

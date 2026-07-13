@@ -4,6 +4,8 @@ import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.block.entity.BlockEntity;
+import net.minecraft.command.permission.Permission;
+import net.minecraft.command.permission.PermissionLevel;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
@@ -177,6 +179,7 @@ public final class BetterRailwaySystemNetworking {
     }
 
     private static boolean betterrailwaysystem$canModifyServerAssets(ServerPlayerEntity player) {
-        return !player.getEntityWorld().getServer().isDedicated() || player.hasPermissionLevel(2);
+        return !player.getEntityWorld().getServer().isDedicated()
+                || player.getCommandSource().getPermissions().hasPermission(new Permission.Level(PermissionLevel.GAMEMASTERS));
     }
 }

@@ -4,6 +4,8 @@ import com.mojang.brigadier.arguments.DoubleArgumentType;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
+import net.minecraft.command.permission.Permission;
+import net.minecraft.command.permission.PermissionLevel;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.text.Text;
 import org.dcstudio.BetterRailwaySystem;
@@ -19,7 +21,7 @@ public final class BetterRailwaySystemCommands {
     public static void register() {
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) ->
                 dispatcher.register(literal("betterrailwaysystem")
-                        .requires(source -> source.hasPermissionLevel(2))
+                        .requires(source -> source.getPermissions().hasPermission(new Permission.Level(PermissionLevel.GAMEMASTERS)))
                         .then(literal("config")
                                 .then(literal("show")
                                         .executes(BetterRailwaySystemCommands::showConfig))

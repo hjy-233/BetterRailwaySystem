@@ -141,7 +141,7 @@ public final class BaliseAssetLibrary {
         if (identifier == null) {
             return;
         }
-        MinecraftClient.getInstance().getSoundManager().play(PositionedSoundInstance.master(SoundEvent.of(identifier), 1.0F));
+        MinecraftClient.getInstance().getSoundManager().play(PositionedSoundInstance.ui(SoundEvent.of(identifier), 1.0F, 1.0F));
     }
 
     public static void applyServerCatalog(List<BaliseAssetCatalogPayload.Entry> imageFiles, List<BaliseAssetCatalogPayload.Entry> soundFiles) {
