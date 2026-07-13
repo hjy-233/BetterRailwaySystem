@@ -6,6 +6,7 @@ import net.minecraft.client.texture.NativeImageBackedTexture;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.network.ClientPlayerEntity;
+import net.minecraft.client.render.RenderLayer;
 import net.minecraft.client.sound.PositionedSoundInstance;
 import net.minecraft.entity.vehicle.AbstractMinecartEntity;
 import net.minecraft.resource.Resource;
@@ -83,13 +84,14 @@ public final class StationAnnouncementOverlay {
             int drawWidth = Math.max(1, Math.round(currentImageWidth * scale));
             int drawHeight = Math.max(1, Math.round(currentImageHeight * scale));
             context.drawTexture(
+                    RenderLayer::getGuiTextured,
                     currentImageId,
                     (context.getScaledWindowWidth() - drawWidth) / 2,
                     IMAGE_TOP_MARGIN,
                     drawWidth,
                     drawHeight,
-                    0.0F,
-                    0.0F,
+                    0,
+                    0,
                     currentImageWidth,
                     currentImageHeight,
                     currentImageWidth,

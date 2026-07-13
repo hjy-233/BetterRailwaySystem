@@ -6,6 +6,7 @@ import net.minecraft.block.BlockState;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.block.entity.BlockEntityType;
 import net.minecraft.block.enums.RailShape;
+import net.minecraft.entity.EntityType;
 import net.minecraft.entity.vehicle.MinecartEntity;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.network.listener.ClientPlayPacketListener;
@@ -174,7 +175,8 @@ public final class TrainSpawnerBlockEntity extends BlockEntity {
             return false;
         }
 
-        MinecartEntity minecart = new MinecartEntity(world, railPos.getX() + 0.5, railPos.getY() + 0.0625, railPos.getZ() + 0.5);
+        MinecartEntity minecart = new MinecartEntity(EntityType.MINECART, world);
+        minecart.setPosition(railPos.getX() + 0.5, railPos.getY() + 0.0625, railPos.getZ() + 0.5);
         TrainSpawnDirection resolvedDirection = resolveDirection(world.getBlockState(railPos), direction);
         if (minecart instanceof BetterRailwaySystemAccess access) {
             access.betterrailwaysystem$setCityName(cityName);
