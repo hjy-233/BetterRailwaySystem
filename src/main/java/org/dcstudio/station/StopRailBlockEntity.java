@@ -57,9 +57,9 @@ public final class StopRailBlockEntity extends BlockEntity {
     @Override
     public void readNbt(NbtCompound nbt, RegistryWrapper.WrapperLookup registries) {
         super.readNbt(nbt, registries);
-        stopDistance = MathHelper.clamp(nbt.getInt("StopDistance"), 1, 128);
-        dwellSeconds = MathHelper.clamp(nbt.getInt("DwellSeconds"), 0, 600);
-        waitMode = StopRailWaitMode.fromString(nbt.getString("WaitMode"));
+        stopDistance = MathHelper.clamp(nbt.getInt("StopDistance", 30), 1, 128);
+        dwellSeconds = MathHelper.clamp(nbt.getInt("DwellSeconds", 3), 0, 600);
+        waitMode = StopRailWaitMode.fromString(nbt.getString("WaitMode", ""));
     }
 
     @Override
