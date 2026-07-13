@@ -125,21 +125,21 @@ public final class RailwayBaliseBlockEntity extends BlockEntity {
     @Override
     public void readNbt(NbtCompound nbt, RegistryWrapper.WrapperLookup registries) {
         super.readNbt(nbt, registries);
-        mode = BaliseMode.fromString(nbt.getString("Mode"));
-        titleText = sanitizeText(nbt.getString("TitleText"), 64);
-        subtitleText = sanitizeText(nbt.getString("SubtitleText"), 96);
-        currentStation = sanitizeText(nbt.getString("CurrentStation"), 64);
-        nextStation = sanitizeText(nbt.getString("NextStation"), 64);
+        mode = BaliseMode.fromString(nbt.getString("Mode", ""));
+        titleText = sanitizeText(nbt.getString("TitleText", ""), 64);
+        subtitleText = sanitizeText(nbt.getString("SubtitleText", ""), 96);
+        currentStation = sanitizeText(nbt.getString("CurrentStation", ""), 64);
+        nextStation = sanitizeText(nbt.getString("NextStation", ""), 64);
         if (currentStation.isBlank() && nbt.contains("StationName")) {
-            currentStation = sanitizeText(nbt.getString("StationName"), 64);
+            currentStation = sanitizeText(nbt.getString("StationName", ""), 64);
         }
-        soundId = sanitizeText(nbt.getString("SoundId"), 128);
-        imageId = sanitizeText(nbt.getString("ImageId"), 128);
-        int savedDuration = nbt.contains("ImageDurationSeconds") ? nbt.getInt("ImageDurationSeconds") : 5;
+        soundId = sanitizeText(nbt.getString("SoundId", ""), 128);
+        imageId = sanitizeText(nbt.getString("ImageId", ""), 128);
+        int savedDuration = nbt.getInt("ImageDurationSeconds", 5);
         imageDurationSeconds = MathHelper.clamp(savedDuration, 1, 60);
-        keepImageUntilNextBalise = nbt.getBoolean("KeepImageUntilNextBalise");
-        updateBossBar = !nbt.contains("UpdateBossBar") || nbt.getBoolean("UpdateBossBar");
-        speedLimitBps = nbt.contains("SpeedLimitBps") ? Math.max(0.01, nbt.getDouble("SpeedLimitBps")) : 4.0;
+        keepImageUntilNextBalise = nbt.getBoolean("KeepImageUntilNextBalise", false);
+        updateBossBar = nbt.getBoolean("UpdateBossBar", true);
+        speedLimitBps = Math.max(0.01, nbt.getDouble("SpeedLimitBps", 4.0));
     }
 
     @Override
