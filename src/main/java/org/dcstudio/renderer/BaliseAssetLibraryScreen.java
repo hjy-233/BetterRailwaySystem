@@ -2,6 +2,7 @@ package org.dcstudio.renderer;
 
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.Click;
 import net.minecraft.client.gl.RenderPipelines;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
@@ -99,7 +100,7 @@ public final class BaliseAssetLibraryScreen extends Screen {
         int previewHeight = panelHeight - 102;
 
         context.fill(panelX, panelY, panelX + panelWidth, panelY + panelHeight, 0xE0101010);
-        context.drawBorder(panelX, panelY, panelWidth, panelHeight, 0xFF8B8B8B);
+        context.drawStrokedRectangle(panelX, panelY, panelWidth, panelHeight, 0xFF8B8B8B);
         context.drawCenteredTextWithShadow(textRenderer, title, width / 2, panelY + 12, 0xFFFFFF);
         context.drawTextWithShadow(textRenderer, Text.translatable("screen.betterrailwaysystem.selected_asset"), panelX + 10, panelY + 32, 0xD0D0D0);
         context.drawTextWithShadow(textRenderer, selectedIdentifier.isBlank() ? "-" : selectedIdentifier, panelX + 96, panelY + 32, 0xFFFFFF);
@@ -107,7 +108,7 @@ public final class BaliseAssetLibraryScreen extends Screen {
         context.drawTextWithShadow(textRenderer, statusText, panelX + 10, panelY + panelHeight - 44, 0xAAAAAA);
 
         context.fill(previewX, previewY, previewX + previewWidth, previewY + previewHeight, 0x66000000);
-        context.drawBorder(previewX, previewY, previewWidth, previewHeight, 0xFF5A5A5A);
+        context.drawStrokedRectangle(previewX, previewY, previewWidth, previewHeight, 0xFF5A5A5A);
         betterrailwaysystem$renderPreview(context, previewX, previewY, previewWidth, previewHeight);
 
         super.render(context, mouseX, mouseY, delta);
@@ -352,10 +353,6 @@ public final class BaliseAssetLibraryScreen extends Screen {
         protected void drawHeaderAndFooterSeparators(DrawContext context) {
         }
 
-        @Override
-        protected void renderDecorations(DrawContext context, int mouseX, int mouseY) {
-        }
-
         private void reload() {
             clearEntries();
             if (entries.isEmpty()) {
@@ -376,16 +373,20 @@ public final class BaliseAssetLibraryScreen extends Screen {
         }
 
         @Override
-        public void render(DrawContext context, int index, int y, int x, int entryWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta) {
+        public void render(DrawContext context, int mouseX, int mouseY, boolean hovered, float tickDelta) {
+            int x = getX();
+            int y = getY();
+            int entryWidth = getWidth();
+            int entryHeight = getHeight();
             int color = entry == null ? 0xAAAAAA : (entry.identifier().equals(selectedIdentifier) ? 0xFF4C7A3D : 0xFF2C2C2C);
             context.fill(x, y + 2, x + entryWidth - 4, y + entryHeight - 2, color);
-            context.drawBorder(x, y + 2, entryWidth - 4, entryHeight - 4, 0xFF6A6A6A);
+            context.drawStrokedRectangle(x, y + 2, entryWidth - 4, entryHeight - 4, 0xFF6A6A6A);
             Text label = entry == null ? Text.translatable("screen.betterrailwaysystem.no_assets") : Text.literal(entry.displayName());
             context.drawTextWithShadow(textRenderer, label, x + 6, y + 9, 0xFFFFFF);
         }
 
         @Override
-        public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        public boolean mouseClicked(Click click, boolean doubleClick) {
             if (entry == null) {
                 return false;
             }

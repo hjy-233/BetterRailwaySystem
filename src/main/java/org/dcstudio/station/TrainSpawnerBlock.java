@@ -52,7 +52,7 @@ public final class TrainSpawnerBlock extends BlockWithEntity implements BlockEnt
 
     @Override
     public <T extends BlockEntity> @Nullable BlockEntityTicker<T> getTicker(World world, BlockState state, BlockEntityType<T> type) {
-        if (world.isClient) {
+        if (world.isClient()) {
             return null;
         }
         return validateTicker(type, BetterRailwaySystem.TRAIN_SPAWNER_BLOCK_ENTITY, (serverWorld, pos, currentState, blockEntity) ->

@@ -19,7 +19,7 @@ public abstract class MinecartEntityMixin {
             return;
         }
 
-        if (minecart.getWorld().isClient) {
+        if (minecart.getEntityWorld().isClient()) {
             cir.setReturnValue(ActionResult.SUCCESS);
             return;
         }

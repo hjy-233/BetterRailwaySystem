@@ -212,7 +212,7 @@ public abstract class AbstractMinecartEntityMixin implements BetterRailwaySystem
     @Inject(method = "tick", at = @At("RETURN"))
     private void betterrailwaysystem$afterTick(CallbackInfo ci) {
         AbstractMinecartEntity minecart = (AbstractMinecartEntity) (Object) this;
-        if (minecart.getWorld().isClient || !(minecart.getWorld() instanceof ServerWorld serverWorld)) {
+        if (minecart.getEntityWorld().isClient() || !(minecart.getEntityWorld() instanceof ServerWorld serverWorld)) {
             return;
         }
 
@@ -252,7 +252,7 @@ public abstract class AbstractMinecartEntityMixin implements BetterRailwaySystem
     private void betterrailwaysystem$substepRailMovement(BlockPos pos, BlockState state, CallbackInfo ci) {
         AbstractMinecartEntity minecart = (AbstractMinecartEntity) (Object) this;
         betterrailwaysystem$updateAscendingLaunchState(minecart, state);
-        if (betterrailwaysystem$substeppingRail || minecart.getWorld().isClient) {
+        if (betterrailwaysystem$substeppingRail || minecart.getEntityWorld().isClient()) {
             return;
         }
 
@@ -497,7 +497,7 @@ public abstract class AbstractMinecartEntityMixin implements BetterRailwaySystem
         double scanDistance = safeDistance + Math.max(4.0, currentSpeed * 40.0);
         double bestGap = Double.MAX_VALUE;
         double frontSpeed = 0.0;
-        List<AbstractMinecartEntity> minecarts = minecart.getWorld().getEntitiesByClass(
+        List<AbstractMinecartEntity> minecarts = minecart.getEntityWorld().getEntitiesByClass(
                 AbstractMinecartEntity.class,
                 new Box(
                         minecart.getX() - scanDistance,
@@ -513,7 +513,7 @@ public abstract class AbstractMinecartEntityMixin implements BetterRailwaySystem
             if (!betterrailwaysystem$findRailPos(other, betterrailwaysystem$otherRailPos)) {
                 continue;
             }
-            Vec3d offset = other.getPos().subtract(minecart.getPos());
+            Vec3d offset = other.getEntityPos().subtract(minecart.getEntityPos());
             double forwardDistance = betterrailwaysystem$getRailForwardDistance(minecart, other, directionX, directionZ, scanDistance);
             if (forwardDistance <= 0.0 || forwardDistance >= bestGap) {
                 continue;
@@ -599,14 +599,14 @@ public abstract class AbstractMinecartEntityMixin implements BetterRailwaySystem
 
     @Unique
     private double betterrailwaysystem$getRailForwardDistance(AbstractMinecartEntity minecart, AbstractMinecartEntity other, double directionX, double directionZ, double maxDistance) {
-        Vec3d offset = other.getPos().subtract(minecart.getPos());
+        Vec3d offset = other.getEntityPos().subtract(minecart.getEntityPos());
         double straightForward = offset.x * directionX + offset.z * directionZ;
         if (betterrailwaysystem$otherRailPos.getX() == betterrailwaysystem$railPos.getX()
                 && betterrailwaysystem$otherRailPos.getY() == betterrailwaysystem$railPos.getY()
                 && betterrailwaysystem$otherRailPos.getZ() == betterrailwaysystem$railPos.getZ()) {
             return straightForward;
         }
-        BlockState currentRailState = minecart.getWorld().getBlockState(betterrailwaysystem$railPos);
+        BlockState currentRailState = minecart.getEntityWorld().getBlockState(betterrailwaysystem$railPos);
         Direction moveDirection = betterrailwaysystem$getRailTravelDirection(currentRailState, directionX, directionZ);
         if (moveDirection == null) {
             return straightForward;
@@ -709,11 +709,11 @@ public abstract class AbstractMinecartEntityMixin implements BetterRailwaySystem
 
     @Unique
     private BlockState betterrailwaysystem$getRailStateAt(AbstractMinecartEntity minecart, BlockPos railPos) {
-        BlockState state = minecart.getWorld().getBlockState(railPos);
+        BlockState state = minecart.getEntityWorld().getBlockState(railPos);
         if (state.isIn(BlockTags.RAILS) || state.getBlock() instanceof AbstractRailBlock) {
             return state;
         }
-        BlockState belowState = minecart.getWorld().getBlockState(railPos.down());
+        BlockState belowState = minecart.getEntityWorld().getBlockState(railPos.down());
         if (belowState.isIn(BlockTags.RAILS) || belowState.getBlock() instanceof AbstractRailBlock) {
             return belowState;
         }
@@ -929,7 +929,7 @@ public abstract class AbstractMinecartEntityMixin implements BetterRailwaySystem
         if (betterrailwaysystem$pendingStopRailPos == null) {
             return;
         }
-        if (!(minecart.getWorld().getBlockEntity(betterrailwaysystem$pendingStopRailPos) instanceof StopRailBlockEntity stopRail)) {
+        if (!(minecart.getEntityWorld().getBlockEntity(betterrailwaysystem$pendingStopRailPos) instanceof StopRailBlockEntity stopRail)) {
             betterrailwaysystem$clearPendingStopRail();
             return;
         }
@@ -958,7 +958,7 @@ public abstract class AbstractMinecartEntityMixin implements BetterRailwaySystem
             betterrailwaysystem$waitingAtStopRail = false;
             return;
         }
-        StopRailBlockEntity stopRail = minecart.getWorld().getBlockEntity(betterrailwaysystem$pendingStopRailPos) instanceof StopRailBlockEntity current ? current : null;
+        StopRailBlockEntity stopRail = minecart.getEntityWorld().getBlockEntity(betterrailwaysystem$pendingStopRailPos) instanceof StopRailBlockEntity current ? current : null;
         if (stopRail == null) {
             betterrailwaysystem$releaseFromStopRail(minecart);
             return;
@@ -974,7 +974,7 @@ public abstract class AbstractMinecartEntityMixin implements BetterRailwaySystem
                 }
             }
             case REDSTONE -> {
-                if (minecart.getWorld().isReceivingRedstonePower(betterrailwaysystem$pendingStopRailPos)) {
+                if (minecart.getEntityWorld().isReceivingRedstonePower(betterrailwaysystem$pendingStopRailPos)) {
                     betterrailwaysystem$releaseFromStopRail(minecart);
                 }
             }
@@ -1042,7 +1042,7 @@ public abstract class AbstractMinecartEntityMixin implements BetterRailwaySystem
         }
         betterrailwaysystem$idleTicks++;
         if (betterrailwaysystem$idleTicks >= BetterRailwaySystem.config().unattendedDespawnSeconds * 20) {
-            if (minecart.getWorld() instanceof ServerWorld serverWorld) {
+            if (minecart.getEntityWorld() instanceof ServerWorld serverWorld) {
                 betterrailwaysystem$clearForcedChunks(serverWorld);
             }
             betterrailwaysystem$clearBossBar();
@@ -1091,7 +1091,7 @@ public abstract class AbstractMinecartEntityMixin implements BetterRailwaySystem
         int baseZ = betterrailwaysystem$railPos.getZ();
         int[] yOffsets = new int[]{-1, 0, 1};
         for (int index = 0; index < yOffsets.length; index++) {
-            BlockEntity blockEntity = minecart.getWorld().getBlockEntity(betterrailwaysystem$searchPos.set(baseX, baseY + yOffsets[index], baseZ));
+            BlockEntity blockEntity = minecart.getEntityWorld().getBlockEntity(betterrailwaysystem$searchPos.set(baseX, baseY + yOffsets[index], baseZ));
             if (type.isInstance(blockEntity)) {
                 return type.cast(blockEntity);
             }
@@ -1105,7 +1105,7 @@ public abstract class AbstractMinecartEntityMixin implements BetterRailwaySystem
         if (railState == null) {
             return null;
         }
-        BlockEntity blockEntity = minecart.getWorld().getBlockEntity(betterrailwaysystem$searchPos.set(
+        BlockEntity blockEntity = minecart.getEntityWorld().getBlockEntity(betterrailwaysystem$searchPos.set(
                 betterrailwaysystem$railPos.getX(),
                 betterrailwaysystem$railPos.getY() - 1,
                 betterrailwaysystem$railPos.getZ()
@@ -1123,7 +1123,7 @@ public abstract class AbstractMinecartEntityMixin implements BetterRailwaySystem
                     blockPos.getY() + offset[1],
                     blockPos.getZ() + offset[2]
             );
-            BlockState state = minecart.getWorld().getBlockState(target);
+            BlockState state = minecart.getEntityWorld().getBlockState(target);
             if (state.isIn(BlockTags.RAILS) || state.getBlock() instanceof AbstractRailBlock) {
                 return true;
             }
@@ -1133,7 +1133,7 @@ public abstract class AbstractMinecartEntityMixin implements BetterRailwaySystem
 
     @Unique
     private BlockEntity betterrailwaysystem$getBlockEntityAt(int x, int y, int z, Class<? extends BlockEntity> type) {
-        BlockEntity blockEntity = ((AbstractMinecartEntity) (Object) this).getWorld().getBlockEntity(betterrailwaysystem$searchPos.set(x, y, z));
+        BlockEntity blockEntity = ((AbstractMinecartEntity) (Object) this).getEntityWorld().getBlockEntity(betterrailwaysystem$searchPos.set(x, y, z));
         return type.isInstance(blockEntity) ? blockEntity : null;
     }
 
@@ -1142,7 +1142,7 @@ public abstract class AbstractMinecartEntityMixin implements BetterRailwaySystem
         BlockPos blockPos = minecart.getBlockPos();
         for (int index = 0; index < BETTERMINECART_RAIL_SEARCH_OFFSETS.length; index++) {
             int[] offset = BETTERMINECART_RAIL_SEARCH_OFFSETS[index];
-            BlockState state = minecart.getWorld().getBlockState(betterrailwaysystem$railPos.set(
+            BlockState state = minecart.getEntityWorld().getBlockState(betterrailwaysystem$railPos.set(
                     blockPos.getX() + offset[0],
                     blockPos.getY() + offset[1],
                     blockPos.getZ() + offset[2]
