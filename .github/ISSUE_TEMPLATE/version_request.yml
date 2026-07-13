@@ -1,38 +1,38 @@
-name: Version request
-description: Request support for another Minecraft, Fabric Loader, Fabric API, or dependency version.
-title: "[Version Request]: "
+name: Version request | 版本支持请求
+description: Request support for another Minecraft, Fabric Loader, Fabric API, or dependency version. | 请求支持其他 Minecraft、Fabric Loader、Fabric API 或依赖版本。
+title: "[Version Request | 版本支持]: "
 labels:
-  - version request
+  - version request | 版本请求
 body:
   - type: input
     id: minecraft-version
     attributes:
-      label: Minecraft version
-      description: Which Minecraft version should be supported?
+      label: Minecraft version | Minecraft 版本
+      description: Which Minecraft version should be supported? | 希望支持哪个 Minecraft 版本？
       placeholder: "1.20.1 / 1.21.2 / 1.22.x"
     validations:
       required: true
   - type: input
     id: fabric-loader-version
     attributes:
-      label: Fabric Loader version
-      description: Optional if you are not sure.
+      label: Fabric Loader version | Fabric Loader 版本
+      description: Optional if you are not sure. | 不确定可以不填。
       placeholder: "0.16.14"
     validations:
       required: false
   - type: input
     id: fabric-api-version
     attributes:
-      label: Fabric API version
-      description: Optional if you are not sure.
+      label: Fabric API version | Fabric API 版本
+      description: Optional if you are not sure. | 不确定可以不填。
       placeholder: "0.128.2+1.21.5"
     validations:
       required: false
   - type: textarea
     id: dependency-versions
     attributes:
-      label: Other dependency versions
-      description: Include Cloth Config, Mod Menu, or other required dependency versions if relevant.
+      label: Other dependency versions | 其他依赖版本
+      description: Include Cloth Config, Mod Menu, or other required dependency versions if relevant. | 如果相关，请填写 Cloth Config、Mod Menu 或其他所需依赖版本。
       placeholder: |
         Cloth Config:
         Mod Menu:
@@ -42,28 +42,28 @@ body:
   - type: dropdown
     id: target
     attributes:
-      label: Request type
+      label: Request type | 请求类型
       options:
-        - New Minecraft version
-        - Different Fabric Loader version
-        - Different Fabric API version
-        - Dependency version update
-        - Backport
-        - Other
+        - New Minecraft version | 新 Minecraft 版本
+        - Different Fabric Loader version | 不同 Fabric Loader 版本
+        - Different Fabric API version | 不同 Fabric API 版本
+        - Dependency version update | 依赖版本更新
+        - Backport | 旧版本移植
+        - Other | 其他
     validations:
       required: true
   - type: textarea
     id: reason
     attributes:
-      label: Why is this version needed?
-      description: Mention server requirements, modpack requirements, or compatibility blockers.
+      label: Why is this version needed? | 为什么需要这个版本？
+      description: Mention server requirements, modpack requirements, or compatibility blockers. | 请说明服务器需求、整合包需求或兼容性阻碍。
     validations:
       required: true
   - type: textarea
     id: logs
     attributes:
-      label: Current failure logs
-      description: If you already tried running the mod on this version, paste the launch/build error.
+      label: Current failure logs | 当前失败日志
+      description: If you already tried running the mod on this version, paste the launch/build error. | 如果你已经尝试在该版本运行模组，请粘贴启动或构建错误。
       render: text
     validations:
       required: false

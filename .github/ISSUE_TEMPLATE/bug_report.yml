@@ -1,72 +1,72 @@
-name: Bug report
-description: Report a crash, broken behavior, or gameplay regression.
-title: "[Bug]: "
+name: Bug report | 错误报告
+description: Report a crash, broken behavior, or gameplay regression. | 报告崩溃、异常行为或游戏回归问题。
+title: "[Bug | 错误]: "
 labels:
-  - bug
+  - bug | 错误
 body:
   - type: checkboxes
     id: checks
     attributes:
-      label: Before reporting
+      label: Before reporting | 提交前确认
       options:
-        - label: I tested with the latest matching BetterRailwaySystem build for my Minecraft version.
+        - label: I tested with the latest matching BetterRailwaySystem build for my Minecraft version. | 我已使用与当前 Minecraft 版本匹配的最新版 BetterRailwaySystem 测试。
           required: true
-        - label: I searched existing issues and did not find the same problem.
+        - label: I searched existing issues and did not find the same problem. | 我已搜索现有 issue，没有找到相同问题。
           required: true
   - type: input
     id: mod-version
     attributes:
-      label: BetterRailwaySystem jar
-      description: Use the exact jar file name.
+      label: BetterRailwaySystem jar | BetterRailwaySystem jar 文件
+      description: Use the exact jar file name. | 请填写完整准确的 jar 文件名。
       placeholder: BetterRailwaySystem-20260713-1309-mc1.21.11.jar
     validations:
       required: true
   - type: input
     id: minecraft-version
     attributes:
-      label: Minecraft version
+      label: Minecraft version | Minecraft 版本
       placeholder: "1.21.11"
     validations:
       required: true
   - type: input
     id: loader-version
     attributes:
-      label: Fabric Loader version
+      label: Fabric Loader version | Fabric Loader 版本
       placeholder: "0.16.14"
     validations:
       required: true
   - type: input
     id: fabric-api-version
     attributes:
-      label: Fabric API version
+      label: Fabric API version | Fabric API 版本
       placeholder: "0.141.4+1.21.11"
     validations:
       required: true
   - type: dropdown
     id: environment
     attributes:
-      label: Environment
+      label: Environment | 运行环境
       options:
-        - Singleplayer
-        - Dedicated server
-        - LAN
-        - Client connected to a modded server
-        - Client connected to a vanilla server
+        - Singleplayer | 单人游戏
+        - Dedicated server | 专用服务器
+        - LAN | 局域网
+        - Client connected to a modded server | 客户端连接到有模组服务器
+        - Client connected to a vanilla server | 客户端连接到原版服务器
     validations:
       required: true
   - type: textarea
     id: other-mods
     attributes:
-      label: Other mods
-      description: Paste the mod list, or say "none".
+      label: Other mods | 其他模组
+      description: Paste the mod list, or say "none". | 粘贴模组列表，或填写 none / 无。
       placeholder: Fabric API, Cloth Config, Mod Menu, ...
     validations:
       required: true
   - type: textarea
     id: steps
     attributes:
-      label: Steps to reproduce
-      description: Be specific enough that the issue can be reproduced in a fresh world.
+      label: Steps to reproduce | 复现步骤
+      description: Be specific enough that the issue can be reproduced in a fresh world. | 请写得足够具体，确保能在新世界中复现。
       placeholder: |
         1. Place ...
         2. Ride a minecart through ...
@@ -76,29 +76,29 @@ body:
   - type: textarea
     id: expected
     attributes:
-      label: Expected behavior
-      placeholder: What should happen?
+      label: Expected behavior | 预期行为
+      placeholder: What should happen? | 应该发生什么？
     validations:
       required: true
   - type: textarea
     id: actual
     attributes:
-      label: Actual behavior
-      placeholder: What happened instead?
+      label: Actual behavior | 实际行为
+      placeholder: What happened instead? | 实际发生了什么？
     validations:
       required: true
   - type: textarea
     id: logs
     attributes:
-      label: Logs or crash report
-      description: Paste the relevant log, crash report, or upload the file.
+      label: Logs or crash report | 日志或崩溃报告
+      description: Paste the relevant log, crash report, or upload the file. | 粘贴相关日志、崩溃报告，或上传文件。
       render: text
     validations:
       required: true
   - type: textarea
     id: screenshots
     attributes:
-      label: Screenshots or video
-      description: Optional, but very useful for UI and railway layout issues.
+      label: Screenshots or video | 截图或视频
+      description: Optional, but very useful for UI and railway layout issues. | 可选，但对 UI 和铁路布局问题很有用。
     validations:
       required: false
