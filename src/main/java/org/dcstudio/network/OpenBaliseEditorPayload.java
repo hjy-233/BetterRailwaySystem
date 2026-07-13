@@ -35,8 +35,8 @@ public record OpenBaliseEditorPayload(
                 PacketCodecs.STRING.encode(buf, payload.soundId);
                 PacketCodecs.STRING.encode(buf, payload.imageId);
                 PacketCodecs.VAR_INT.encode(buf, payload.imageDurationSeconds);
-                PacketCodecs.BOOL.encode(buf, payload.keepImageUntilNextBalise);
-                PacketCodecs.BOOL.encode(buf, payload.updateBossBar);
+                PacketCodecs.BOOLEAN.encode(buf, payload.keepImageUntilNextBalise);
+                PacketCodecs.BOOLEAN.encode(buf, payload.updateBossBar);
                 PacketCodecs.DOUBLE.encode(buf, payload.speedLimitBps);
             },
             buf -> new OpenBaliseEditorPayload(
@@ -49,8 +49,8 @@ public record OpenBaliseEditorPayload(
                     PacketCodecs.STRING.decode(buf),
                     PacketCodecs.STRING.decode(buf),
                     PacketCodecs.VAR_INT.decode(buf),
-                    PacketCodecs.BOOL.decode(buf),
-                    PacketCodecs.BOOL.decode(buf),
+                    PacketCodecs.BOOLEAN.decode(buf),
+                    PacketCodecs.BOOLEAN.decode(buf),
                     PacketCodecs.DOUBLE.decode(buf)
             )
     );
