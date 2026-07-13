@@ -27,7 +27,7 @@ public record StationAnnouncementPayload(
             StationAnnouncementPayload::imageId,
             PacketCodecs.VAR_INT,
             StationAnnouncementPayload::imageDurationSeconds,
-            PacketCodecs.BOOL,
+            PacketCodecs.BOOLEAN,
             StationAnnouncementPayload::keepImageUntilNextBalise,
             StationAnnouncementPayload::new
     );
