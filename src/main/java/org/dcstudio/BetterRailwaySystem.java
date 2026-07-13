@@ -2,6 +2,7 @@ package org.dcstudio;
 
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.itemgroup.v1.ItemGroupEvents;
+import net.fabricmc.fabric.api.object.builder.v1.block.entity.FabricBlockEntityTypeBuilder;
 import net.minecraft.block.AbstractBlock;
 import net.minecraft.block.Block;
 import net.minecraft.block.entity.BlockEntityType;
@@ -44,7 +45,7 @@ public class BetterRailwaySystem implements ModInitializer {
     public static final BlockEntityType<RailwayBaliseBlockEntity> RAILWAY_BALISE_BLOCK_ENTITY = Registry.register(
             Registries.BLOCK_ENTITY_TYPE,
             id("railway_balise"),
-            BlockEntityType.Builder.create(RailwayBaliseBlockEntity::new, RAILWAY_BALISE).build(null)
+            FabricBlockEntityTypeBuilder.create(RailwayBaliseBlockEntity::new, RAILWAY_BALISE).build()
     );
     public static final Block STOP_RAIL = Registry.register(
             Registries.BLOCK,
@@ -59,7 +60,7 @@ public class BetterRailwaySystem implements ModInitializer {
     public static final BlockEntityType<StopRailBlockEntity> STOP_RAIL_BLOCK_ENTITY = Registry.register(
             Registries.BLOCK_ENTITY_TYPE,
             id("stop_rail"),
-            BlockEntityType.Builder.create(StopRailBlockEntity::new, STOP_RAIL).build(null)
+            FabricBlockEntityTypeBuilder.create(StopRailBlockEntity::new, STOP_RAIL).build()
     );
     public static final Block TRAIN_SPAWNER = Registry.register(
             Registries.BLOCK,
@@ -74,7 +75,7 @@ public class BetterRailwaySystem implements ModInitializer {
     public static final BlockEntityType<TrainSpawnerBlockEntity> TRAIN_SPAWNER_BLOCK_ENTITY = Registry.register(
             Registries.BLOCK_ENTITY_TYPE,
             id("train_spawner"),
-            BlockEntityType.Builder.create(TrainSpawnerBlockEntity::new, TRAIN_SPAWNER).build(null)
+            FabricBlockEntityTypeBuilder.create(TrainSpawnerBlockEntity::new, TRAIN_SPAWNER).build()
     );
     public static final Block TRAIN_COLLECTOR = Registry.register(
             Registries.BLOCK,
@@ -89,7 +90,7 @@ public class BetterRailwaySystem implements ModInitializer {
     public static final BlockEntityType<TrainCollectorBlockEntity> TRAIN_COLLECTOR_BLOCK_ENTITY = Registry.register(
             Registries.BLOCK_ENTITY_TYPE,
             id("train_collector"),
-            BlockEntityType.Builder.create(TrainCollectorBlockEntity::new, TRAIN_COLLECTOR).build(null)
+            FabricBlockEntityTypeBuilder.create(TrainCollectorBlockEntity::new, TRAIN_COLLECTOR).build()
     );
 
     private static BetterRailwaySystemConfig config;
