@@ -1,0 +1,150 @@
+name: Build and Release
+
+on:
+  push:
+    branches:
+      - dev
+      - "release/**"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version, for example 2026.07.13-1"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-release-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: false
+
+jobs:
+  prerelease:
+    name: Build current branch and publish pre-release
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build
+        id: build
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          minecraft_version="$(grep '^minecraft_version=' gradle.properties | cut -d= -f2)"
+          timestamp="$(TZ=Asia/Shanghai date +'%Y%m%d-%H%M')"
+          version="${timestamp}-mc${minecraft_version}"
+          branch_slug="${GITHUB_REF_NAME//\//-}"
+          artifact="BetterRailwaySystem-${version}.jar"
+
+          ./gradlew --no-daemon clean build -Pmod_version="${version}"
+
+          mkdir -p release-artifacts
+          built_jar="$(find build/libs -maxdepth 1 -type f -name '*.jar' ! -name '*-sources.jar' | head -n 1)"
+          cp "${built_jar}" "release-artifacts/${artifact}"
+
+          {
+            echo "minecraft_version=${minecraft_version}"
+            echo "version=${version}"
+            echo "branch_slug=${branch_slug}"
+            echo "tag=pre-${branch_slug}-${version}-${GITHUB_SHA::7}"
+            echo "title=BetterRailwaySystem ${version} (${GITHUB_REF_NAME})"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Publish pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create "${{ steps.build.outputs.tag }}" release-artifacts/*.jar \
+            --repo "${GITHUB_REPOSITORY}" \
+            --target "${GITHUB_SHA}" \
+            --title "${{ steps.build.outputs.title }}" \
+            --generate-notes \
+            --prerelease
+
+  release:
+    name: Build all supported branches and publish release
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build all branches
+        id: build
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          version="${{ inputs.version }}"
+          mkdir -p release-artifacts
+
+          mapfile -t branches < <(
+            git for-each-ref refs/remotes/origin --format='%(refname:short)' \
+              | sed 's#^origin/##' \
+              | grep -E '^(dev|release/.+)$' \
+              | sort -V
+          )
+
+          if [ "${#branches[@]}" -eq 0 ]; then
+            echo "No supported branches found." >&2
+            exit 1
+          fi
+
+          for branch in "${branches[@]}"; do
+            echo "::group::Build ${branch}"
+            git checkout --force -B "${branch}" "origin/${branch}"
+
+            minecraft_version="$(grep '^minecraft_version=' gradle.properties | cut -d= -f2)"
+            artifact="BetterRailwaySystem-${version}-mc${minecraft_version}.jar"
+
+            ./gradlew --no-daemon clean build -Pmod_version="${version}"
+
+            built_jar="$(find build/libs -maxdepth 1 -type f -name '*.jar' ! -name '*-sources.jar' | head -n 1)"
+            cp "${built_jar}" "release-artifacts/${artifact}"
+            echo "::endgroup::"
+          done
+
+          {
+            echo "tag=v${version}"
+            echo "title=BetterRailwaySystem ${version}"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create "${{ steps.build.outputs.tag }}" release-artifacts/*.jar \
+            --repo "${GITHUB_REPOSITORY}" \
+            --target "${GITHUB_SHA}" \
+            --title "${{ steps.build.outputs.title }}" \
+            --generate-notes
