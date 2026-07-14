@@ -7,6 +7,7 @@
 **BetterRailwaySystem 是一个基于 Fabric 的 Minecraft 模组，在不替换原版矿车和铁轨系统的前提下增强其功能。**
 
 [English](../README.md)｜简体中文
+[Modrinth](https://modrinth.com/mod/betterrailwaysystem)
 </div>
 
 目标：
