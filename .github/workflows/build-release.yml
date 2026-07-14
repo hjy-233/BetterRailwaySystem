@@ -20,7 +20,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  MODRINTH_PROJECT_ID: betterrailwaysystem
+  MODRINTH_PROJECT_ID: RJQ36h4i
   MODRINTH_FABRIC_API_ID: P7dR8mSH
   MODRINTH_CLOTH_CONFIG_ID: 9s6osm5g
   MODRINTH_MOD_MENU_ID: mOgUt4GM
