@@ -21,7 +21,8 @@ public record SaveBalisePayload(
         int imageDurationSeconds,
         boolean keepImageUntilNextBalise,
         boolean updateBossBar,
-        double speedLimitBps
+        double speedLimitBps,
+        String triggerDirection
 ) implements CustomPayload {
     public static final Id<SaveBalisePayload> ID = new Id<>(BetterRailwaySystem.id("save_balise"));
     public static final PacketCodec<RegistryByteBuf, SaveBalisePayload> CODEC = PacketCodec.of(
@@ -38,6 +39,7 @@ public record SaveBalisePayload(
                 PacketCodecs.BOOLEAN.encode(buf, payload.keepImageUntilNextBalise);
                 PacketCodecs.BOOLEAN.encode(buf, payload.updateBossBar);
                 PacketCodecs.DOUBLE.encode(buf, payload.speedLimitBps);
+                PacketCodecs.STRING.encode(buf, payload.triggerDirection);
             },
             buf -> new SaveBalisePayload(
                     BlockPos.PACKET_CODEC.decode(buf),
@@ -51,7 +53,8 @@ public record SaveBalisePayload(
                     PacketCodecs.VAR_INT.decode(buf),
                     PacketCodecs.BOOLEAN.decode(buf),
                     PacketCodecs.BOOLEAN.decode(buf),
-                    PacketCodecs.DOUBLE.decode(buf)
+                    PacketCodecs.DOUBLE.decode(buf),
+                    PacketCodecs.STRING.decode(buf)
             )
     );
 
