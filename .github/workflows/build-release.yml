@@ -52,7 +52,30 @@ jobs:
         run: |
           set -euo pipefail
 
+          resolve_game_versions_json() {
+            local branch="$1"
+            local fallback="$2"
+            case "${branch}" in
+              release/1.20-1.20.4)
+                jq -nc '["1.20","1.20.1","1.20.2","1.20.3","1.20.4"]'
+                ;;
+              release/1.20.5-1.20.6)
+                jq -nc '["1.20.5","1.20.6"]'
+                ;;
+              release/1.21.6-1.21.8)
+                jq -nc '["1.21.6","1.21.7","1.21.8"]'
+                ;;
+              release/1.21.9-1.21.10)
+                jq -nc '["1.21.9","1.21.10"]'
+                ;;
+              *)
+                jq -nc --arg version "${fallback}" '[$version]'
+                ;;
+            esac
+          }
+
           minecraft_version="$(grep '^minecraft_version=' gradle.properties | cut -d= -f2)"
+          game_versions_json="$(resolve_game_versions_json "${GITHUB_REF_NAME}" "${minecraft_version}")"
           timestamp="$(TZ=Asia/Shanghai date +'%Y%m%d-%H%M')"
           version="${timestamp}-mc${minecraft_version}"
           branch_slug="${GITHUB_REF_NAME//\//-}"
@@ -66,6 +89,7 @@ jobs:
 
           {
             echo "minecraft_version=${minecraft_version}"
+            echo "game_versions_json=${game_versions_json}"
             echo "version=${version}"
             echo "branch_slug=${branch_slug}"
             echo "artifact=${artifact}"
@@ -99,7 +123,7 @@ jobs:
             --arg version_number "${{ steps.build.outputs.version }}" \
             --arg changelog "${changelog}" \
             --arg project_id "${MODRINTH_PROJECT_ID}" \
-            --arg game_version "${{ steps.build.outputs.minecraft_version }}" \
+            --argjson game_versions '${{ steps.build.outputs.game_versions_json }}' \
             --arg fabric_api_id "${MODRINTH_FABRIC_API_ID}" \
             --arg cloth_config_id "${MODRINTH_CLOTH_CONFIG_ID}" \
             --arg mod_menu_id "${MODRINTH_MOD_MENU_ID}" \
@@ -112,7 +136,7 @@ jobs:
                 {project_id: $cloth_config_id, dependency_type: "required"},
                 {project_id: $mod_menu_id, dependency_type: "optional"}
               ],
-              game_versions: [$game_version],
+              game_versions: $game_versions,
               version_type: "beta",
               loaders: ["fabric"],
               featured: false,
@@ -156,6 +180,28 @@ jobs:
           mkdir -p release-artifacts
           : > release-artifacts/modrinth-versions.tsv
 
+          resolve_game_versions_json() {
+            local branch="$1"
+            local fallback="$2"
+            case "${branch}" in
+              release/1.20-1.20.4)
+                jq -nc '["1.20","1.20.1","1.20.2","1.20.3","1.20.4"]'
+                ;;
+              release/1.20.5-1.20.6)
+                jq -nc '["1.20.5","1.20.6"]'
+                ;;
+              release/1.21.6-1.21.8)
+                jq -nc '["1.21.6","1.21.7","1.21.8"]'
+                ;;
+              release/1.21.9-1.21.10)
+                jq -nc '["1.21.9","1.21.10"]'
+                ;;
+              *)
+                jq -nc --arg version "${fallback}" '[$version]'
+                ;;
+            esac
+          }
+
           mapfile -t branches < <(
             git for-each-ref refs/remotes/origin --format='%(refname:short)' \
               | sed 's#^origin/##' \
@@ -173,6 +219,7 @@ jobs:
             git checkout --force -B "${branch}" "origin/${branch}"
 
             minecraft_version="$(grep '^minecraft_version=' gradle.properties | cut -d= -f2)"
+            game_versions_json="$(resolve_game_versions_json "${branch}" "${minecraft_version}")"
             artifact="BetterRailwaySystem-${version}-mc${minecraft_version}.jar"
             modrinth_version="${version}-mc${minecraft_version}"
 
@@ -180,7 +227,7 @@ jobs:
 
             built_jar="$(find build/libs -maxdepth 1 -type f -name '*.jar' ! -name '*-sources.jar' | head -n 1)"
             cp "${built_jar}" "release-artifacts/${artifact}"
-            printf '%s\t%s\t%s\t%s\n' "${artifact}" "${modrinth_version}" "${minecraft_version}" "${branch}" >> release-artifacts/modrinth-versions.tsv
+            printf '%s\t%s\t%s\t%s\t%s\n' "${artifact}" "${modrinth_version}" "${minecraft_version}" "${branch}" "${game_versions_json}" >> release-artifacts/modrinth-versions.tsv
             echo "::endgroup::"
           done
 
@@ -207,14 +254,14 @@ jobs:
         run: |
           set -euo pipefail
 
-          while IFS=$'\t' read -r artifact version_number minecraft_version branch; do
+          while IFS=$'\t' read -r artifact version_number minecraft_version branch game_versions_json; do
             changelog="Automated release build from ${branch}. See the GitHub release notes for full changes."
             data="$(jq -nc \
               --arg name "BetterRailwaySystem ${version_number}" \
               --arg version_number "${version_number}" \
               --arg changelog "${changelog}" \
               --arg project_id "${MODRINTH_PROJECT_ID}" \
-              --arg game_version "${minecraft_version}" \
+              --argjson game_versions "${game_versions_json}" \
               --arg fabric_api_id "${MODRINTH_FABRIC_API_ID}" \
               --arg cloth_config_id "${MODRINTH_CLOTH_CONFIG_ID}" \
               --arg mod_menu_id "${MODRINTH_MOD_MENU_ID}" \
@@ -227,7 +274,7 @@ jobs:
                   {project_id: $cloth_config_id, dependency_type: "required"},
                   {project_id: $mod_menu_id, dependency_type: "optional"}
                 ],
-                game_versions: [$game_version],
+                game_versions: $game_versions,
                 version_type: "release",
                 loaders: ["fabric"],
                 featured: true,
