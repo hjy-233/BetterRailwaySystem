@@ -19,9 +19,16 @@ concurrency:
   group: build-release-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: false
 
+env:
+  MODRINTH_PROJECT_ID: betterrailwaysystem
+  MODRINTH_FABRIC_API_ID: P7dR8mSH
+  MODRINTH_CLOTH_CONFIG_ID: 9s6osm5g
+  MODRINTH_MOD_MENU_ID: mOgUt4GM
+  MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
+
 jobs:
   prerelease:
-    name: Build current branch and publish pre-release
+    name: Build current branch and publish beta
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
@@ -61,11 +68,12 @@ jobs:
             echo "minecraft_version=${minecraft_version}"
             echo "version=${version}"
             echo "branch_slug=${branch_slug}"
+            echo "artifact=${artifact}"
             echo "tag=pre-${branch_slug}-${version}-${GITHUB_SHA::7}"
             echo "title=BetterRailwaySystem ${version} (${GITHUB_REF_NAME})"
           } >> "${GITHUB_OUTPUT}"
 
-      - name: Publish pre-release
+      - name: Publish GitHub beta release
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
@@ -77,6 +85,47 @@ jobs:
             --title "${{ steps.build.outputs.title }}" \
             --generate-notes \
             --prerelease
+
+      - name: Publish Modrinth beta version
+        if: env.MODRINTH_TOKEN != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          artifact="release-artifacts/${{ steps.build.outputs.artifact }}"
+          changelog="Automated beta build from ${GITHUB_REF_NAME} at ${GITHUB_SHA}."
+          data="$(jq -nc \
+            --arg name "BetterRailwaySystem ${{ steps.build.outputs.version }}" \
+            --arg version_number "${{ steps.build.outputs.version }}" \
+            --arg changelog "${changelog}" \
+            --arg project_id "${MODRINTH_PROJECT_ID}" \
+            --arg game_version "${{ steps.build.outputs.minecraft_version }}" \
+            --arg fabric_api_id "${MODRINTH_FABRIC_API_ID}" \
+            --arg cloth_config_id "${MODRINTH_CLOTH_CONFIG_ID}" \
+            --arg mod_menu_id "${MODRINTH_MOD_MENU_ID}" \
+            '{
+              name: $name,
+              version_number: $version_number,
+              changelog: $changelog,
+              dependencies: [
+                {project_id: $fabric_api_id, dependency_type: "required"},
+                {project_id: $cloth_config_id, dependency_type: "required"},
+                {project_id: $mod_menu_id, dependency_type: "optional"}
+              ],
+              game_versions: [$game_version],
+              version_type: "beta",
+              loaders: ["fabric"],
+              featured: false,
+              project_id: $project_id,
+              file_parts: ["file"],
+              primary_file: "file"
+            }')"
+
+          curl --fail-with-body -X POST "https://api.modrinth.com/v2/version" \
+            -H "Authorization: ${MODRINTH_TOKEN}" \
+            -H "User-Agent: hjy-233/BetterRailwaySystem GitHub Actions" \
+            -F "data=${data}" \
+            -F "file=@${artifact}"
 
   release:
     name: Build all supported branches and publish release
@@ -105,6 +154,7 @@ jobs:
 
           version="${{ inputs.version }}"
           mkdir -p release-artifacts
+          : > release-artifacts/modrinth-versions.tsv
 
           mapfile -t branches < <(
             git for-each-ref refs/remotes/origin --format='%(refname:short)' \
@@ -124,11 +174,13 @@ jobs:
 
             minecraft_version="$(grep '^minecraft_version=' gradle.properties | cut -d= -f2)"
             artifact="BetterRailwaySystem-${version}-mc${minecraft_version}.jar"
+            modrinth_version="${version}-mc${minecraft_version}"
 
             ./gradlew --no-daemon clean build -Pmod_version="${version}"
 
             built_jar="$(find build/libs -maxdepth 1 -type f -name '*.jar' ! -name '*-sources.jar' | head -n 1)"
             cp "${built_jar}" "release-artifacts/${artifact}"
+            printf '%s\t%s\t%s\t%s\n' "${artifact}" "${modrinth_version}" "${minecraft_version}" "${branch}" >> release-artifacts/modrinth-versions.tsv
             echo "::endgroup::"
           done
 
@@ -137,7 +189,7 @@ jobs:
             echo "title=BetterRailwaySystem ${version}"
           } >> "${GITHUB_OUTPUT}"
 
-      - name: Publish release
+      - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
@@ -148,3 +200,45 @@ jobs:
             --target "${GITHUB_SHA}" \
             --title "${{ steps.build.outputs.title }}" \
             --generate-notes
+
+      - name: Publish Modrinth release versions
+        if: env.MODRINTH_TOKEN != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          while IFS=$'\t' read -r artifact version_number minecraft_version branch; do
+            changelog="Automated release build from ${branch}. See the GitHub release notes for full changes."
+            data="$(jq -nc \
+              --arg name "BetterRailwaySystem ${version_number}" \
+              --arg version_number "${version_number}" \
+              --arg changelog "${changelog}" \
+              --arg project_id "${MODRINTH_PROJECT_ID}" \
+              --arg game_version "${minecraft_version}" \
+              --arg fabric_api_id "${MODRINTH_FABRIC_API_ID}" \
+              --arg cloth_config_id "${MODRINTH_CLOTH_CONFIG_ID}" \
+              --arg mod_menu_id "${MODRINTH_MOD_MENU_ID}" \
+              '{
+                name: $name,
+                version_number: $version_number,
+                changelog: $changelog,
+                dependencies: [
+                  {project_id: $fabric_api_id, dependency_type: "required"},
+                  {project_id: $cloth_config_id, dependency_type: "required"},
+                  {project_id: $mod_menu_id, dependency_type: "optional"}
+                ],
+                game_versions: [$game_version],
+                version_type: "release",
+                loaders: ["fabric"],
+                featured: true,
+                project_id: $project_id,
+                file_parts: ["file"],
+                primary_file: "file"
+              }')"
+
+            curl --fail-with-body -X POST "https://api.modrinth.com/v2/version" \
+              -H "Authorization: ${MODRINTH_TOKEN}" \
+              -H "User-Agent: hjy-233/BetterRailwaySystem GitHub Actions" \
+              -F "data=${data}" \
+              -F "file=@release-artifacts/${artifact}"
+          done < release-artifacts/modrinth-versions.tsv
