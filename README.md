@@ -7,6 +7,7 @@
 **BetterRailwaySystem is a Fabric mod for Minecraft that enhances the vanilla minecart and rail system without replacing it.**
 
 English｜[简体中文](./docs/README_zh.md)
+[Modrinth](https://modrinth.com/mod/betterrailwaysystem)
 <br>
 ###### *English version is translated by generative AI, please forgive any errors or inconsistencies.*
 </div>
