@@ -28,7 +28,7 @@ env:
 
 jobs:
   prerelease:
-    name: Build current branch and publish beta
+    name: Build current branch and maybe publish beta
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
@@ -36,6 +36,29 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Decide whether to publish beta
+        id: publish_gate
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          subject="$(git log -1 --pretty=%s)"
+          commit_type="${subject%%:*}"
+          commit_type="${commit_type%%(*}"
+          commit_type="${commit_type%!}"
+          commit_type="$(printf '%s' "${commit_type}" | tr '[:upper:]' '[:lower:]' | xargs)"
+
+          case "${commit_type}" in
+            docs|style|test|chore|refactor|ci)
+              echo "publish=false" >> "${GITHUB_OUTPUT}"
+              echo "Skipping beta publish for commit type: ${commit_type}"
+              ;;
+            *)
+              echo "publish=true" >> "${GITHUB_OUTPUT}"
+              echo "Publishing beta for commit type: ${commit_type}"
+              ;;
+          esac
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -98,6 +121,7 @@ jobs:
           } >> "${GITHUB_OUTPUT}"
 
       - name: Publish GitHub beta release
+        if: steps.publish_gate.outputs.publish == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
@@ -111,7 +135,7 @@ jobs:
             --prerelease
 
       - name: Publish Modrinth beta version
-        if: env.MODRINTH_TOKEN != ''
+        if: steps.publish_gate.outputs.publish == 'true' && env.MODRINTH_TOKEN != ''
         shell: bash
         run: |
           set -euo pipefail
