@@ -59,7 +59,8 @@ public final class BetterRailwaySystemNetworking {
                 blockEntity.getImageDurationSeconds(),
                 blockEntity.shouldKeepImageUntilNextBalise(),
                 blockEntity.shouldUpdateBossBar(),
-                blockEntity.getSpeedLimitBps()
+                blockEntity.getSpeedLimitBps(),
+                blockEntity.getTriggerDirection()
         ));
     }
 
@@ -122,7 +123,8 @@ public final class BetterRailwaySystemNetworking {
                     payload.imageDurationSeconds(),
                     payload.keepImageUntilNextBalise(),
                     payload.updateBossBar(),
-                    payload.speedLimitBps()
+                    payload.speedLimitBps(),
+                    payload.triggerDirection()
             );
         }
     }

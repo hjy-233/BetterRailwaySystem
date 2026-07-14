@@ -11,6 +11,7 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
 import org.dcstudio.BetterRailwaySystem;
 import org.dcstudio.minecart.BaliseMode;
+import org.dcstudio.minecart.TrainSpawnDirection;
 import org.jetbrains.annotations.Nullable;
 
 // 保存铁路信标的触发类型和广播内容。
@@ -26,6 +27,7 @@ public final class RailwayBaliseBlockEntity extends BlockEntity {
     private boolean keepImageUntilNextBalise;
     private boolean updateBossBar = true;
     private double speedLimitBps = 4.0;
+    private String triggerDirection = "";
 
     public RailwayBaliseBlockEntity(BlockPos pos, BlockState state) {
         super(BetterRailwaySystem.RAILWAY_BALISE_BLOCK_ENTITY, pos, state);
@@ -75,6 +77,10 @@ public final class RailwayBaliseBlockEntity extends BlockEntity {
         return speedLimitBps;
     }
 
+    public String getTriggerDirection() {
+        return triggerDirection;
+    }
+
     public void setSettings(
             BaliseMode mode,
             String titleText,
@@ -86,7 +92,8 @@ public final class RailwayBaliseBlockEntity extends BlockEntity {
             int imageDurationSeconds,
             boolean keepImageUntilNextBalise,
             boolean updateBossBar,
-            double speedLimitBps
+            double speedLimitBps,
+            String triggerDirection
     ) {
         this.mode = mode == null ? BaliseMode.ARRIVAL : mode;
         this.titleText = sanitizeText(titleText, 64);
@@ -99,6 +106,7 @@ public final class RailwayBaliseBlockEntity extends BlockEntity {
         this.keepImageUntilNextBalise = keepImageUntilNextBalise;
         this.updateBossBar = updateBossBar;
         this.speedLimitBps = Math.max(0.01, speedLimitBps);
+        this.triggerDirection = sanitizeDirection(triggerDirection);
         markDirty();
         if (world != null) {
             world.updateListeners(pos, getCachedState(), getCachedState(), Block.NOTIFY_ALL);
@@ -119,6 +127,7 @@ public final class RailwayBaliseBlockEntity extends BlockEntity {
         nbt.putBoolean("KeepImageUntilNextBalise", keepImageUntilNextBalise);
         nbt.putBoolean("UpdateBossBar", updateBossBar);
         nbt.putDouble("SpeedLimitBps", speedLimitBps);
+        nbt.putString("TriggerDirection", triggerDirection);
     }
 
     @Override
@@ -139,6 +148,7 @@ public final class RailwayBaliseBlockEntity extends BlockEntity {
         keepImageUntilNextBalise = nbt.getBoolean("KeepImageUntilNextBalise");
         updateBossBar = !nbt.contains("UpdateBossBar") || nbt.getBoolean("UpdateBossBar");
         speedLimitBps = nbt.contains("SpeedLimitBps") ? Math.max(0.01, nbt.getDouble("SpeedLimitBps")) : 4.0;
+        triggerDirection = nbt.contains("TriggerDirection") ? sanitizeDirection(nbt.getString("TriggerDirection")) : "";
     }
 
     @Override
@@ -154,5 +164,13 @@ public final class RailwayBaliseBlockEntity extends BlockEntity {
     private String sanitizeText(String value, int maxLength) {
         String trimmed = value == null ? "" : value.trim();
         return trimmed.length() <= maxLength ? trimmed : trimmed.substring(0, maxLength);
+    }
+
+    private String sanitizeDirection(String value) {
+        if (value == null || value.isBlank()) {
+            return "";
+        }
+        TrainSpawnDirection direction = TrainSpawnDirection.fromString(value);
+        return direction.isLegacyRelative() ? "" : direction.serializedName();
     }
 }

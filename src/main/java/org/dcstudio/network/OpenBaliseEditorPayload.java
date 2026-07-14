@@ -19,7 +19,8 @@ public record OpenBaliseEditorPayload(
         int imageDurationSeconds,
         boolean keepImageUntilNextBalise,
         boolean updateBossBar,
-        double speedLimitBps
+        double speedLimitBps,
+        String triggerDirection
 ) {
     public static final Identifier ID = BetterRailwaySystem.id("open_balise_editor");
 
@@ -36,7 +37,8 @@ public record OpenBaliseEditorPayload(
                 buf.readVarInt(),
                 buf.readBoolean(),
                 buf.readBoolean(),
-                buf.readDouble()
+                buf.readDouble(),
+                buf.readString()
         );
     }
 
@@ -53,6 +55,7 @@ public record OpenBaliseEditorPayload(
         buf.writeBoolean(keepImageUntilNextBalise);
         buf.writeBoolean(updateBossBar);
         buf.writeDouble(speedLimitBps);
+        buf.writeString(triggerDirection);
     }
 
     public BaliseMode parsedMode() {
