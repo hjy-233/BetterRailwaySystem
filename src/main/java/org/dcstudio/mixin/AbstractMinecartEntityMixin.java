@@ -780,6 +780,10 @@ public abstract class AbstractMinecartEntityMixin implements BetterRailwaySystem
             return;
         }
 
+        if (!betterrailwaysystem$matchesBaliseTriggerDirection(minecart, blockEntity)) {
+            return;
+        }
+
         long currentPos = blockEntity.getPos().asLong();
         if (currentPos == betterrailwaysystem$lastBalisePos) {
             return;
@@ -837,6 +841,37 @@ public abstract class AbstractMinecartEntityMixin implements BetterRailwaySystem
                 betterrailwaysystem$sendBaliseAnnouncement(minecart, blockEntity, defaultText(blockEntity.getTitleText(), "限速结束"), defaultText(blockEntity.getSubtitleText(), "恢复默认速度"));
             }
         }
+    }
+
+    @Unique
+    private boolean betterrailwaysystem$matchesBaliseTriggerDirection(AbstractMinecartEntity minecart, RailwayBaliseBlockEntity blockEntity) {
+        String configuredDirection = blockEntity.getTriggerDirection();
+        if (configuredDirection == null || configuredDirection.isBlank()) {
+            return true;
+        }
+        TrainSpawnDirection triggerDirection = TrainSpawnDirection.fromString(configuredDirection);
+        if (triggerDirection.isLegacyRelative()) {
+            return true;
+        }
+        BlockState railState = betterrailwaysystem$findRailState(minecart);
+        if (railState == null) {
+            return true;
+        }
+        Direction travelDirection = betterrailwaysystem$getRailTravelDirection(
+                railState,
+                betterrailwaysystem$guessTravelDirectionX(minecart),
+                betterrailwaysystem$guessTravelDirectionZ(minecart)
+        );
+        if (travelDirection == null) {
+            return true;
+        }
+        return switch (triggerDirection) {
+            case NORTH -> travelDirection == Direction.NORTH;
+            case SOUTH -> travelDirection == Direction.SOUTH;
+            case WEST -> travelDirection == Direction.WEST;
+            case EAST -> travelDirection == Direction.EAST;
+            default -> true;
+        };
     }
 
     @Unique
