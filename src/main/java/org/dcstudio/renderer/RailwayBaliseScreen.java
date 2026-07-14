@@ -13,8 +13,10 @@ import net.minecraft.util.math.MathHelper;
 import org.dcstudio.asset.BaliseAssetType;
 import org.dcstudio.client.asset.BaliseAssetLibrary;
 import org.dcstudio.minecart.BaliseMode;
+import org.dcstudio.minecart.TrainSpawnDirection;
 import org.dcstudio.network.OpenBaliseEditorPayload;
 import org.dcstudio.network.SaveBalisePayload;
+import org.dcstudio.station.TrainSpawnerBlockEntity;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -37,8 +39,10 @@ public final class RailwayBaliseScreen extends Screen {
     private TextFieldWidget imageIdField;
     private TextFieldWidget durationField;
     private TextFieldWidget speedLimitField;
+    private CyclingButtonWidget<TrainSpawnDirection> triggerDirectionButton;
     private CheckboxWidget keepImageCheckbox;
     private CheckboxWidget bossBarCheckbox;
+    private TrainSpawnDirection fallbackTriggerDirection = TrainSpawnDirection.EAST;
     private int panelWidth;
     private int panelHeight;
     private int panelX;
@@ -80,6 +84,28 @@ public final class RailwayBaliseScreen extends Screen {
         speedLimitField = new TextFieldWidget(textRenderer, 0, 0, 90, 20, Text.empty());
         speedLimitField.setText(Double.toString(payload.speedLimitBps()));
         speedLimitField.setTextPredicate(value -> value.isEmpty() || betterrailwaysystem$isDoubleInRange(value, 0.01, 128.0));
+
+        List<TrainSpawnDirection> triggerDirectionOptions = new ArrayList<>();
+        triggerDirectionOptions.add(TrainSpawnDirection.FORWARD);
+        triggerDirectionOptions.addAll(betterrailwaysystem$detectDirections(payload));
+        if (triggerDirectionOptions.size() == 1) {
+            TrainSpawnDirection savedDirection = TrainSpawnDirection.fromString(payload.triggerDirection());
+            if (!savedDirection.isLegacyRelative()) {
+                triggerDirectionOptions.add(savedDirection);
+            }
+        }
+        fallbackTriggerDirection = triggerDirectionOptions.getFirst();
+        TrainSpawnDirection initialTriggerDirection = TrainSpawnDirection.fromString(payload.triggerDirection());
+        if (payload.triggerDirection().isBlank() || !triggerDirectionOptions.contains(initialTriggerDirection)) {
+            initialTriggerDirection = fallbackTriggerDirection;
+        }
+        triggerDirectionButton = CyclingButtonWidget.<TrainSpawnDirection>builder(
+                        direction -> direction.isLegacyRelative()
+                                ? Text.translatable("screen.betterrailwaysystem.direction.any")
+                                : Text.translatable("screen.betterrailwaysystem.direction." + direction.serializedName()),
+                        initialTriggerDirection)
+                .values(triggerDirectionOptions)
+                .build(0, 0, 120, 20, Text.empty(), (button, value) -> betterrailwaysystem$refreshRows());
 
         keepImageCheckbox = CheckboxWidget.builder(Text.translatable("screen.betterrailwaysystem.keep_image_until_next_balise"), textRenderer)
                 .pos(0, 0)
@@ -163,6 +189,8 @@ public final class RailwayBaliseScreen extends Screen {
         BaliseMode mode = modeButton.getValue() == null ? payload.parsedMode() : modeButton.getValue();
         List<NativeFormWidgets.RowEntry> rows = new ArrayList<>();
         rows.add(new NativeFormWidgets.LabeledWidgetEntry(Text.translatable("screen.betterrailwaysystem.balise_mode"), modeButton, LABEL_WIDTH));
+        rows.add(new NativeFormWidgets.LabeledWidgetEntry(Text.translatable("screen.betterrailwaysystem.trigger_direction"), triggerDirectionButton, LABEL_WIDTH));
+        rows.add(new NativeFormWidgets.HintEntry(betterrailwaysystem$triggerDirectionHint()));
         if (betterrailwaysystem$showsTitleField(mode)) {
             rows.add(new NativeFormWidgets.LabeledWidgetEntry(Text.translatable("screen.betterrailwaysystem.title_text"), titleField, LABEL_WIDTH));
         }
@@ -198,6 +226,8 @@ public final class RailwayBaliseScreen extends Screen {
         BaliseMode mode = modeButton.getValue() == null ? payload.parsedMode() : modeButton.getValue();
         int durationSeconds = betterrailwaysystem$parseInt(durationField.getText(), payload.imageDurationSeconds(), 1, 60);
         double speedLimit = betterrailwaysystem$parseDouble(speedLimitField.getText(), payload.speedLimitBps(), 0.01, 128.0);
+        TrainSpawnDirection triggerDirection = triggerDirectionButton.getValue() == null ? fallbackTriggerDirection : triggerDirectionButton.getValue();
+        String triggerDirectionValue = triggerDirection.isLegacyRelative() ? "" : triggerDirection.serializedName();
         ClientPlayNetworking.send(new SaveBalisePayload(
                 payload.pos(),
                 mode.serializedName(),
@@ -210,7 +240,8 @@ public final class RailwayBaliseScreen extends Screen {
                 durationSeconds,
                 keepImageCheckbox.isChecked(),
                 bossBarCheckbox.isChecked(),
-                speedLimit
+                speedLimit,
+                triggerDirectionValue
         ));
         close();
     }
@@ -258,6 +289,17 @@ public final class RailwayBaliseScreen extends Screen {
         return mode == BaliseMode.ARRIVAL || mode == BaliseMode.DEPARTURE || mode == BaliseMode.ANNOUNCEMENT;
     }
 
+    private Text betterrailwaysystem$triggerDirectionHint() {
+        TrainSpawnDirection direction = triggerDirectionButton.getValue();
+        if (direction == null || direction.isLegacyRelative()) {
+            return Text.translatable("screen.betterrailwaysystem.trigger_direction_hint.any");
+        }
+        return Text.translatable(
+                "screen.betterrailwaysystem.trigger_direction_hint.direction",
+                Text.translatable("screen.betterrailwaysystem.direction." + direction.serializedName())
+        );
+    }
+
     private static boolean betterrailwaysystem$isIntInRange(String value, int min, int max) {
         try {
             int parsed = Integer.parseInt(value);
@@ -290,5 +332,13 @@ public final class RailwayBaliseScreen extends Screen {
         } catch (NumberFormatException ignored) {
             return fallback;
         }
+    }
+
+    private static List<TrainSpawnDirection> betterrailwaysystem$detectDirections(OpenBaliseEditorPayload payload) {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client.world == null) {
+            return new ArrayList<>();
+        }
+        return new ArrayList<>(TrainSpawnerBlockEntity.detectDirections(client.world, payload.pos()));
     }
 }

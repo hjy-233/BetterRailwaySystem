@@ -179,4 +179,19 @@ final class NativeFormWidgets {
             widget.render(context, mouseX, mouseY, tickDelta);
         }
     }
+
+    static final class HintEntry extends RowEntry {
+        private final Text text;
+
+        HintEntry(Text text) {
+            this.text = text;
+        }
+
+        @Override
+        public void render(DrawContext context, int mouseX, int mouseY, boolean hovered, float tickDelta) {
+            int x = getX();
+            int y = getY();
+            context.drawTextWithShadow(MinecraftClient.getInstance().textRenderer, text, x + 4, y + 8, 0xFFA0A0A0);
+        }
+    }
 }
