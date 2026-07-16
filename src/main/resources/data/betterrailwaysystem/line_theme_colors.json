@@ -1,0 +1,40 @@
+{
+  "colors": {
+    "red": {
+      "rgb": "#E35D5B",
+      "bossbar": "red"
+    },
+    "orange": {
+      "rgb": "#F08B3E",
+      "bossbar": "yellow"
+    },
+    "yellow": {
+      "rgb": "#E0BE42",
+      "bossbar": "yellow"
+    },
+    "green": {
+      "rgb": "#58B368",
+      "bossbar": "green"
+    },
+    "cyan": {
+      "rgb": "#3FB8AF",
+      "bossbar": "blue"
+    },
+    "blue": {
+      "rgb": "#3C78D8",
+      "bossbar": "blue"
+    },
+    "purple": {
+      "rgb": "#8E6AC8",
+      "bossbar": "purple"
+    },
+    "pink": {
+      "rgb": "#D96AA7",
+      "bossbar": "pink"
+    },
+    "white": {
+      "rgb": "#F4F4F4",
+      "bossbar": "white"
+    }
+  }
+}

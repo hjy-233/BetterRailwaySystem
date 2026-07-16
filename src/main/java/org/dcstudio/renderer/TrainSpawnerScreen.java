@@ -12,6 +12,7 @@ import net.minecraft.text.Text;
 import net.minecraft.util.math.MathHelper;
 import org.dcstudio.minecart.LineThemeColor;
 import org.dcstudio.minecart.TrainSpawnDirection;
+import org.dcstudio.minecart.UiOptionData;
 import org.dcstudio.network.OpenTrainSpawnerEditorPayload;
 import org.dcstudio.network.SaveTrainSpawnerPayload;
 import org.dcstudio.station.TrainSpawnerBlockEntity;
@@ -31,11 +32,13 @@ public final class TrainSpawnerScreen extends Screen {
     private TextFieldWidget cityField;
     private TextFieldWidget lineIdField;
     private TextFieldWidget targetCountField;
+    private TextFieldWidget intervalField;
     private CyclingButtonWidget<String> citySelectorButton;
     private CyclingButtonWidget<LineThemeColor> lineColorButton;
     private CyclingButtonWidget<TrainSpawnDirection> directionButton;
     private CheckboxWidget redstoneCheckbox;
     private CheckboxWidget circularCheckbox;
+    private boolean lastCircularChecked;
     private List<String> cityOptions = List.of();
     private TrainSpawnDirection fallbackDirection = TrainSpawnDirection.EAST;
     private int panelWidth;
@@ -73,6 +76,11 @@ public final class TrainSpawnerScreen extends Screen {
         targetCountField.setMaxLength(2);
         targetCountField.setTextPredicate(value -> value.isEmpty() || betterrailwaysystem$isIntInRange(value, 1, 64));
 
+        intervalField = new TextFieldWidget(textRenderer, 0, 0, 80, 20, Text.empty());
+        intervalField.setText(Integer.toString(payload.spawnIntervalSeconds()));
+        intervalField.setMaxLength(4);
+        intervalField.setTextPredicate(value -> value.isEmpty() || betterrailwaysystem$isIntInRange(value, 1, 3600));
+
         citySelectorButton = CyclingButtonWidget.<String>builder(value ->
                         CREATE_CITY_VALUE.equals(value)
                                 ? Text.translatable("screen.betterrailwaysystem.city_mode.create")
@@ -92,7 +100,7 @@ public final class TrainSpawnerScreen extends Screen {
 
         lineColorButton = CyclingButtonWidget.<LineThemeColor>builder(color ->
                         Text.translatable("screen.betterrailwaysystem.line_theme_color." + color.serializedName()))
-                .values(List.of(LineThemeColor.values()))
+                .values(UiOptionData.lineThemeColors())
                 .initially(LineThemeColor.fromString(payload.lineThemeColor()))
                 .build(0, 0, 120, 20, Text.empty());
 
@@ -121,18 +129,10 @@ public final class TrainSpawnerScreen extends Screen {
                 .checked(payload.circularLine())
                 .maxWidth(contentWidth - 24)
                 .build();
+        lastCircularChecked = circularCheckbox.isChecked();
 
         formList = NativeFormWidgets.createFormList(client, contentX, contentY, contentWidth, footerY - contentY - 8, contentWidth - 16);
-        formList.setEntries(List.of(
-                new NativeFormWidgets.LabeledWidgetEntry(Text.translatable("screen.betterrailwaysystem.city_selector"), citySelectorButton, LABEL_WIDTH),
-                new NativeFormWidgets.LabeledWidgetEntry(Text.translatable("screen.betterrailwaysystem.city_name"), cityField, LABEL_WIDTH),
-                new NativeFormWidgets.LabeledWidgetEntry(Text.translatable("screen.betterrailwaysystem.line_id"), lineIdField, LABEL_WIDTH),
-                new NativeFormWidgets.LabeledWidgetEntry(Text.translatable("screen.betterrailwaysystem.target_train_count"), targetCountField, LABEL_WIDTH),
-                new NativeFormWidgets.LabeledWidgetEntry(Text.translatable("screen.betterrailwaysystem.line_theme_color"), lineColorButton, LABEL_WIDTH),
-                new NativeFormWidgets.LabeledWidgetEntry(Text.translatable("screen.betterrailwaysystem.direction"), directionButton, LABEL_WIDTH),
-                new NativeFormWidgets.FullWidthWidgetEntry(redstoneCheckbox),
-                new NativeFormWidgets.FullWidthWidgetEntry(circularCheckbox)
-        ));
+        betterrailwaysystem$refreshFormEntries();
         addDrawableChild(formList);
 
         addDrawableChild(ButtonWidget.builder(Text.translatable("gui.done"), button -> betterrailwaysystem$save())
@@ -157,11 +157,38 @@ public final class TrainSpawnerScreen extends Screen {
     public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta) {
     }
 
+    @Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        boolean handled = super.mouseClicked(mouseX, mouseY, button);
+        if (circularCheckbox != null && circularCheckbox.isChecked() != lastCircularChecked) {
+            lastCircularChecked = circularCheckbox.isChecked();
+            betterrailwaysystem$refreshFormEntries();
+        }
+        return handled;
+    }
+
     private void betterrailwaysystem$layoutBounds() {
         panelWidth = Math.max(320, Math.min(PANEL_WIDTH, width - 40));
         panelHeight = Math.max(250, Math.min(PANEL_HEIGHT, height - 40));
         panelX = (width - panelWidth) / 2;
         panelY = (height - panelHeight) / 2;
+    }
+
+    private void betterrailwaysystem$refreshFormEntries() {
+        List<NativeFormWidgets.RowEntry> entries = new ArrayList<>();
+        entries.add(new NativeFormWidgets.LabeledWidgetEntry(Text.translatable("screen.betterrailwaysystem.city_selector"), citySelectorButton, LABEL_WIDTH));
+        entries.add(new NativeFormWidgets.LabeledWidgetEntry(Text.translatable("screen.betterrailwaysystem.city_name"), cityField, LABEL_WIDTH));
+        entries.add(new NativeFormWidgets.LabeledWidgetEntry(Text.translatable("screen.betterrailwaysystem.line_id"), lineIdField, LABEL_WIDTH));
+        if (circularCheckbox != null && circularCheckbox.isChecked()) {
+            entries.add(new NativeFormWidgets.LabeledWidgetEntry(Text.translatable("screen.betterrailwaysystem.target_train_count"), targetCountField, LABEL_WIDTH));
+        } else {
+            entries.add(new NativeFormWidgets.LabeledWidgetEntry(Text.translatable("screen.betterrailwaysystem.interval_seconds"), intervalField, LABEL_WIDTH));
+        }
+        entries.add(new NativeFormWidgets.LabeledWidgetEntry(Text.translatable("screen.betterrailwaysystem.line_theme_color"), lineColorButton, LABEL_WIDTH));
+        entries.add(new NativeFormWidgets.LabeledWidgetEntry(Text.translatable("screen.betterrailwaysystem.direction"), directionButton, LABEL_WIDTH));
+        entries.add(new NativeFormWidgets.FullWidthWidgetEntry(redstoneCheckbox));
+        entries.add(new NativeFormWidgets.FullWidthWidgetEntry(circularCheckbox));
+        formList.setEntries(entries);
     }
 
     private List<String> betterrailwaysystem$buildCityOptions() {
@@ -175,7 +202,8 @@ public final class TrainSpawnerScreen extends Screen {
     }
 
     private void betterrailwaysystem$save() {
-        int targetTrainCount = betterrailwaysystem$parseInt(targetCountField.getText(), payload.targetTrainCount(), 1, 64);
+        int targetTrainCount = circularCheckbox.isChecked() ? betterrailwaysystem$parseInt(targetCountField.getText(), payload.targetTrainCount(), 1, 64) : 1;
+        int spawnIntervalSeconds = betterrailwaysystem$parseInt(intervalField.getText(), payload.spawnIntervalSeconds(), 1, 3600);
         String selectedCity = citySelectorButton.getValue();
         String cityName = CREATE_CITY_VALUE.equals(selectedCity) ? cityField.getText().trim() : selectedCity;
         LineThemeColor lineThemeColor = lineColorButton.getValue() == null ? LineThemeColor.BLUE : lineColorButton.getValue();
@@ -188,6 +216,7 @@ public final class TrainSpawnerScreen extends Screen {
                 lineThemeColor.serializedName(),
                 direction.serializedName(),
                 targetTrainCount,
+                spawnIntervalSeconds,
                 flags
         ));
         close();

@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "balise": {
+    "mode": "arrival",
+    "image_duration_seconds": 5,
+    "update_bossbar": true,
+    "speed_limit_bps": 4.0
+  },
+  "stop_rail": {
+    "stop_distance": 30,
+    "dwell_seconds": 3,
+    "wait_mode": "timer"
+  },
+  "train_spawner": {
+    "city_name": "Default",
+    "line_id": "L1",
+    "line_theme_color": "blue",
+    "direction": "forward",
+    "target_train_count": 1,
+    "spawn_interval_seconds": 60
+  }
+}

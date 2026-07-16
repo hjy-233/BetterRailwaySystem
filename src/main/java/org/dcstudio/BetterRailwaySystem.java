@@ -2,12 +2,14 @@ package org.dcstudio;
 
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.itemgroup.v1.ItemGroupEvents;
+import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
 import net.minecraft.block.AbstractBlock;
 import net.minecraft.block.Block;
 import net.minecraft.block.entity.BlockEntityType;
 import net.minecraft.item.BlockItem;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemGroups;
+import net.minecraft.resource.ResourceType;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.Registry;
 import net.minecraft.util.Identifier;
@@ -15,6 +17,7 @@ import org.dcstudio.asset.ServerBaliseAssetLibrary;
 import org.dcstudio.config.BetterRailwaySystemConfig;
 import org.dcstudio.config.BetterRailwaySystemCommands;
 import org.dcstudio.config.BetterRailwaySystemConfigManager;
+import org.dcstudio.config.BetterRailwaySystemDataReloadListener;
 import org.dcstudio.network.BetterRailwaySystemNetworking;
 import org.dcstudio.station.RailwayBaliseBlock;
 import org.dcstudio.station.RailwayBaliseBlockEntity;
@@ -93,12 +96,14 @@ public class BetterRailwaySystem implements ModInitializer {
     );
 
     private static BetterRailwaySystemConfig config;
+    private static boolean debugMode;
 
     @Override
     public void onInitialize() {
         config = BetterRailwaySystemConfigManager.load();
         ServerBaliseAssetLibrary.initialize();
         registerItemGroups();
+        ResourceManagerHelper.get(ResourceType.SERVER_DATA).registerReloadListener(new BetterRailwaySystemDataReloadListener());
         BetterRailwaySystemCommands.register();
         BetterRailwaySystemNetworking.register();
     }
@@ -126,5 +131,13 @@ public class BetterRailwaySystem implements ModInitializer {
 
     public static void reloadConfig() {
         config = BetterRailwaySystemConfigManager.load();
+    }
+
+    public static boolean isDebugMode() {
+        return debugMode;
+    }
+
+    public static void setDebugMode(boolean value) {
+        debugMode = value;
     }
 }

@@ -22,6 +22,7 @@ import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import org.dcstudio.BetterRailwaySystem;
+import org.dcstudio.config.BetterRailwaySystemDataSchema;
 import org.dcstudio.minecart.BaliseMode;
 import org.dcstudio.minecart.BetterRailwaySystemAccess;
 import org.dcstudio.minecart.LineThemeColor;
@@ -356,6 +357,7 @@ public abstract class AbstractMinecartEntityMixin implements BetterRailwaySystem
 
     @Inject(method = "writeCustomDataToNbt", at = @At("TAIL"))
     private void betterrailwaysystem$writeMinecartData(NbtCompound nbt, CallbackInfo ci) {
+        nbt.putInt(BetterRailwaySystemDataSchema.VERSION_KEY, BetterRailwaySystemDataSchema.currentVersion());
         nbt.putDouble("BetterRailwaySystemSpeedLimit", betterrailwaysystem$activeSpeedLimitBps);
         nbt.putString("BetterRailwaySystemCityName", betterrailwaysystem$cityName);
         nbt.putString("BetterRailwaySystemLineId", betterrailwaysystem$lineId);
@@ -392,7 +394,10 @@ public abstract class AbstractMinecartEntityMixin implements BetterRailwaySystem
         betterrailwaysystem$activeSpeedLimitBps = nbt.contains("BetterRailwaySystemSpeedLimit") ? nbt.getDouble("BetterRailwaySystemSpeedLimit") : -1.0;
         betterrailwaysystem$cityName = nbt.getString("BetterRailwaySystemCityName");
         betterrailwaysystem$lineId = nbt.getString("BetterRailwaySystemLineId");
-        betterrailwaysystem$lineThemeColor = LineThemeColor.fromString(nbt.getString("BetterRailwaySystemLineThemeColor")).serializedName();
+        String savedThemeColor = nbt.contains("BetterRailwaySystemLineThemeColor")
+                ? nbt.getString("BetterRailwaySystemLineThemeColor")
+                : BetterRailwaySystemDataSchema.defaultMinecartLineThemeColor();
+        betterrailwaysystem$lineThemeColor = LineThemeColor.fromString(savedThemeColor).serializedName();
         betterrailwaysystem$circularLine = nbt.getBoolean("BetterRailwaySystemCircularLine");
         betterrailwaysystem$leftOriginSpawner = nbt.getBoolean("BetterRailwaySystemLeftOriginSpawner");
         betterrailwaysystem$circularLineRecorded = nbt.getBoolean("BetterRailwaySystemCircularRecorded");
@@ -789,6 +794,7 @@ public abstract class AbstractMinecartEntityMixin implements BetterRailwaySystem
             return;
         }
         betterrailwaysystem$lastBalisePos = currentPos;
+        blockEntity.recordLastMinecart(minecart);
 
         switch (blockEntity.getMode()) {
             case ARRIVAL -> {
@@ -977,6 +983,7 @@ public abstract class AbstractMinecartEntityMixin implements BetterRailwaySystem
         betterrailwaysystem$waitingAtStopRail = true;
         betterrailwaysystem$stopWaitMode = stopRail.getWaitMode();
         betterrailwaysystem$stopDwellTicksRemaining = stopRail.getDwellSeconds() * 20;
+        stopRail.recordLastMinecart(minecart);
         betterrailwaysystem$stopRailReleaseSpeed = Math.min(
                 betterrailwaysystem$getCurrentMaxSpeedPerTick(),
                 Math.max(betterrailwaysystem$lastTravelSpeed, 0.24)
@@ -1056,6 +1063,7 @@ public abstract class AbstractMinecartEntityMixin implements BetterRailwaySystem
         if (collector == null) {
             return;
         }
+        collector.recordLastMinecart(minecart);
         betterrailwaysystem$clearBossBar();
         betterrailwaysystem$clearForcedChunks(serverWorld);
         minecart.discard();
@@ -1403,6 +1411,11 @@ public abstract class AbstractMinecartEntityMixin implements BetterRailwaySystem
     @Override
     public boolean betterrailwaysystem$isWaitingAtStopRail() {
         return betterrailwaysystem$waitingAtStopRail;
+    }
+
+    @Override
+    public boolean betterrailwaysystem$isDepartingFromStopRail() {
+        return betterrailwaysystem$stopRailBoostTicksRemaining > 0;
     }
 
     @Override

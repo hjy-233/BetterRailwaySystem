@@ -6,7 +6,8 @@
   "mixins": [
     "EntityMixin",
     "MinecartEntityMixin",
-    "AbstractMinecartEntityMixin"
+    "AbstractMinecartEntityMixin",
+    "ServerPlayNetworkHandlerMixin"
   ],
   "injectors": {
     "defaultRequire": 1

@@ -23,6 +23,7 @@ public final class BetterRailwaySystemConfigScreen {
                     draft.sanitize();
                     BetterRailwaySystemConfigManager.save(draft);
                     BetterRailwaySystem.reloadConfig();
+                    BetterRailwaySystemDebugClient.applyConfiguredKey();
                 });
         ConfigCategory category = builder.getOrCreateCategory(Text.translatable("screen.betterrailwaysystem.config.category.general"));
         ConfigEntryBuilder entryBuilder = builder.entryBuilder();
@@ -60,6 +61,10 @@ public final class BetterRailwaySystemConfigScreen {
                 .setMin(1)
                 .setMax(3600)
                 .setSaveConsumer(value -> draft.unattendedDespawnSeconds = value)
+                .build());
+        category.addEntry(entryBuilder.startKeyCodeField(Text.translatable("screen.betterrailwaysystem.config.debug_toggle_key"), BetterRailwaySystemDebugClient.configuredToggleKey())
+                .setDefaultValue(BetterRailwaySystemDebugClient.defaultToggleKey())
+                .setKeySaveConsumer(value -> draft.debugToggleKey = value.getTranslationKey())
                 .build());
 
         return builder.build();

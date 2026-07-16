@@ -3,6 +3,7 @@ package org.dcstudio.station;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.entity.BlockEntity;
+import net.minecraft.entity.vehicle.AbstractMinecartEntity;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.network.listener.ClientPlayPacketListener;
 import net.minecraft.network.packet.Packet;
@@ -11,24 +12,27 @@ import net.minecraft.registry.RegistryWrapper;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
 import org.dcstudio.BetterRailwaySystem;
+import org.dcstudio.config.BetterRailwaySystemDataSchema;
 import org.dcstudio.minecart.BaliseMode;
+import org.dcstudio.minecart.MinecartDebugSnapshot;
 import org.dcstudio.minecart.TrainSpawnDirection;
 import org.jetbrains.annotations.Nullable;
 
 // 保存铁路信标的触发类型和广播内容。
 public final class RailwayBaliseBlockEntity extends BlockEntity {
-    private BaliseMode mode = BaliseMode.ARRIVAL;
+    private BaliseMode mode = BetterRailwaySystemDataSchema.defaultBaliseMode();
     private String titleText = "";
     private String subtitleText = "";
     private String currentStation = "";
     private String nextStation = "";
     private String soundId = "";
     private String imageId = "";
-    private int imageDurationSeconds = 5;
+    private int imageDurationSeconds = BetterRailwaySystemDataSchema.defaultBaliseImageDurationSeconds();
     private boolean keepImageUntilNextBalise;
-    private boolean updateBossBar = true;
-    private double speedLimitBps = 4.0;
+    private boolean updateBossBar = BetterRailwaySystemDataSchema.defaultBaliseUpdateBossBar();
+    private double speedLimitBps = BetterRailwaySystemDataSchema.defaultBaliseSpeedLimitBps();
     private String triggerDirection = "";
+    private MinecartDebugSnapshot lastMinecartDebug = MinecartDebugSnapshot.empty();
 
     public RailwayBaliseBlockEntity(BlockPos pos, BlockState state) {
         super(BetterRailwaySystem.RAILWAY_BALISE_BLOCK_ENTITY, pos, state);
@@ -82,6 +86,15 @@ public final class RailwayBaliseBlockEntity extends BlockEntity {
         return triggerDirection;
     }
 
+    public MinecartDebugSnapshot getLastMinecartDebug() {
+        return lastMinecartDebug;
+    }
+
+    public void recordLastMinecart(AbstractMinecartEntity minecart) {
+        lastMinecartDebug = MinecartDebugRecorder.snapshot(minecart);
+        MinecartDebugRecorder.sync(this);
+    }
+
     public void setSettings(
             BaliseMode mode,
             String titleText,
@@ -117,6 +130,7 @@ public final class RailwayBaliseBlockEntity extends BlockEntity {
     @Override
     protected void writeNbt(NbtCompound nbt, RegistryWrapper.WrapperLookup registries) {
         super.writeNbt(nbt, registries);
+        nbt.putInt(BetterRailwaySystemDataSchema.VERSION_KEY, BetterRailwaySystemDataSchema.currentVersion());
         nbt.putString("Mode", mode.serializedName());
         nbt.putString("TitleText", titleText);
         nbt.putString("SubtitleText", subtitleText);
@@ -129,6 +143,7 @@ public final class RailwayBaliseBlockEntity extends BlockEntity {
         nbt.putBoolean("UpdateBossBar", updateBossBar);
         nbt.putDouble("SpeedLimitBps", speedLimitBps);
         nbt.putString("TriggerDirection", triggerDirection);
+        nbt.put("LastMinecartDebug", lastMinecartDebug.toNbt());
     }
 
     @Override
@@ -144,12 +159,16 @@ public final class RailwayBaliseBlockEntity extends BlockEntity {
         }
         soundId = sanitizeText(nbt.getString("SoundId"), 128);
         imageId = sanitizeText(nbt.getString("ImageId"), 128);
-        int savedDuration = nbt.contains("ImageDurationSeconds") ? nbt.getInt("ImageDurationSeconds") : 5;
+        int savedDuration = nbt.contains("ImageDurationSeconds") ? nbt.getInt("ImageDurationSeconds") : BetterRailwaySystemDataSchema.defaultBaliseImageDurationSeconds();
         imageDurationSeconds = MathHelper.clamp(savedDuration, 1, 60);
         keepImageUntilNextBalise = nbt.getBoolean("KeepImageUntilNextBalise");
-        updateBossBar = !nbt.contains("UpdateBossBar") || nbt.getBoolean("UpdateBossBar");
-        speedLimitBps = nbt.contains("SpeedLimitBps") ? Math.max(0.01, nbt.getDouble("SpeedLimitBps")) : 4.0;
+        updateBossBar = nbt.contains("UpdateBossBar") ? nbt.getBoolean("UpdateBossBar") : BetterRailwaySystemDataSchema.defaultBaliseUpdateBossBar();
+        speedLimitBps = nbt.contains("SpeedLimitBps") ? Math.max(0.01, nbt.getDouble("SpeedLimitBps")) : BetterRailwaySystemDataSchema.defaultBaliseSpeedLimitBps();
         triggerDirection = nbt.contains("TriggerDirection") ? sanitizeDirection(nbt.getString("TriggerDirection")) : "";
+        lastMinecartDebug = nbt.contains("LastMinecartDebug") ? MinecartDebugSnapshot.fromNbt(nbt.getCompound("LastMinecartDebug")) : MinecartDebugSnapshot.empty();
+        if (!nbt.contains(BetterRailwaySystemDataSchema.VERSION_KEY)) {
+            markDirty();
+        }
     }
 
     @Override

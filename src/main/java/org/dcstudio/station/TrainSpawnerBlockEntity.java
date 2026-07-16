@@ -7,6 +7,7 @@ import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.block.entity.BlockEntityType;
 import net.minecraft.block.enums.RailShape;
 import net.minecraft.entity.vehicle.MinecartEntity;
+import net.minecraft.entity.vehicle.AbstractMinecartEntity;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.network.listener.ClientPlayPacketListener;
 import net.minecraft.network.packet.Packet;
@@ -19,8 +20,10 @@ import net.minecraft.util.math.Box;
 import net.minecraft.util.math.ChunkPos;
 import net.minecraft.util.math.MathHelper;
 import org.dcstudio.BetterRailwaySystem;
+import org.dcstudio.config.BetterRailwaySystemDataSchema;
 import org.dcstudio.minecart.BetterRailwaySystemAccess;
 import org.dcstudio.minecart.LineThemeColor;
+import org.dcstudio.minecart.MinecartDebugSnapshot;
 import org.dcstudio.minecart.RailwayCityState;
 import org.dcstudio.minecart.TrainSpawnDirection;
 import org.jetbrains.annotations.Nullable;
@@ -30,20 +33,22 @@ import java.util.List;
 
 // 负责定时或红石控制生成带线路信息的矿车。
 public final class TrainSpawnerBlockEntity extends BlockEntity {
-    private String cityName = "Default";
-    private String lineId = "L1";
-    private String lineThemeColor = LineThemeColor.BLUE.serializedName();
-    private TrainSpawnDirection direction = TrainSpawnDirection.FORWARD;
-    private int targetTrainCount = 1;
+    private String cityName = BetterRailwaySystemDataSchema.defaultCityName();
+    private String lineId = BetterRailwaySystemDataSchema.defaultLineId();
+    private String lineThemeColor = BetterRailwaySystemDataSchema.defaultLineThemeColor();
+    private TrainSpawnDirection direction = BetterRailwaySystemDataSchema.defaultTrainSpawnDirection();
+    private int targetTrainCount = BetterRailwaySystemDataSchema.defaultTargetTrainCount();
+    private int spawnIntervalSeconds = BetterRailwaySystemDataSchema.defaultSpawnerIntervalSeconds();
     private boolean redstoneControlled;
     private boolean circularLine;
     private int cooldownTicks;
     private boolean wasPowered;
+    private MinecartDebugSnapshot lastMinecartDebug = MinecartDebugSnapshot.empty();
     private static final double SPAWN_SPEED = 0.24;
 
     public TrainSpawnerBlockEntity(BlockPos pos, BlockState state) {
         super(BetterRailwaySystem.TRAIN_SPAWNER_BLOCK_ENTITY, pos, state);
-        cooldownTicks = 20;
+        cooldownTicks = BetterRailwaySystemDataSchema.defaultSpawnerCooldownTicks();
     }
 
     public static void tick(ServerWorld world, BlockPos pos, BlockState state, TrainSpawnerBlockEntity blockEntity) {
@@ -62,11 +67,16 @@ public final class TrainSpawnerBlockEntity extends BlockEntity {
             blockEntity.cooldownTicks--;
         }
         if (blockEntity.cooldownTicks <= 0) {
-            int activeMinecartCount = blockEntity.betterrailwaysystem$countActiveMinecarts(world);
-            if (activeMinecartCount < blockEntity.targetTrainCount) {
-                blockEntity.spawnMinecart(world);
+            if (blockEntity.circularLine) {
+                int activeMinecartCount = blockEntity.betterrailwaysystem$countActiveMinecarts(world);
+                if (activeMinecartCount < blockEntity.targetTrainCount) {
+                    blockEntity.spawnMinecart(world);
+                }
+                blockEntity.cooldownTicks = blockEntity.betterrailwaysystem$computeCircularCooldownTicks(activeMinecartCount);
+            } else {
+                boolean spawned = blockEntity.spawnMinecart(world);
+                blockEntity.cooldownTicks = spawned ? blockEntity.spawnIntervalSeconds * 20 : 20;
             }
-            blockEntity.cooldownTicks = blockEntity.betterrailwaysystem$computeCooldownTicks(world, activeMinecartCount);
         }
     }
 
@@ -90,6 +100,10 @@ public final class TrainSpawnerBlockEntity extends BlockEntity {
         return targetTrainCount;
     }
 
+    public int getSpawnIntervalSeconds() {
+        return spawnIntervalSeconds;
+    }
+
     public boolean isRedstoneControlled() {
         return redstoneControlled;
     }
@@ -98,15 +112,25 @@ public final class TrainSpawnerBlockEntity extends BlockEntity {
         return circularLine;
     }
 
-    public void setSettings(String cityName, String lineId, String lineThemeColor, TrainSpawnDirection direction, int targetTrainCount, boolean redstoneControlled, boolean circularLine) {
+    public MinecartDebugSnapshot getLastMinecartDebug() {
+        return lastMinecartDebug;
+    }
+
+    public void recordLastMinecart(AbstractMinecartEntity minecart) {
+        lastMinecartDebug = MinecartDebugRecorder.snapshot(minecart);
+        MinecartDebugRecorder.sync(this);
+    }
+
+    public void setSettings(String cityName, String lineId, String lineThemeColor, TrainSpawnDirection direction, int targetTrainCount, int spawnIntervalSeconds, boolean redstoneControlled, boolean circularLine) {
         this.cityName = sanitizeText(cityName, 32, "Default");
         this.lineId = sanitizeText(lineId, 32, "L1");
         this.lineThemeColor = LineThemeColor.fromString(lineThemeColor).serializedName();
         this.direction = direction == null ? TrainSpawnDirection.FORWARD : direction;
         this.targetTrainCount = MathHelper.clamp(targetTrainCount, 1, 64);
+        this.spawnIntervalSeconds = MathHelper.clamp(spawnIntervalSeconds, 1, 3600);
         this.redstoneControlled = redstoneControlled;
         this.circularLine = circularLine;
-        this.cooldownTicks = 20;
+        this.cooldownTicks = circularLine ? 20 : this.spawnIntervalSeconds * 20;
         if (world instanceof ServerWorld serverWorld) {
             RailwayCityState.get(serverWorld).addCity(this.cityName);
         }
@@ -119,31 +143,41 @@ public final class TrainSpawnerBlockEntity extends BlockEntity {
     @Override
     protected void writeNbt(NbtCompound nbt, RegistryWrapper.WrapperLookup registries) {
         super.writeNbt(nbt, registries);
+        nbt.putInt(BetterRailwaySystemDataSchema.VERSION_KEY, BetterRailwaySystemDataSchema.currentVersion());
         nbt.putString("CityName", cityName);
         nbt.putString("LineId", lineId);
         nbt.putString("LineThemeColor", lineThemeColor);
         nbt.putString("Direction", direction.serializedName());
         nbt.putInt("TargetTrainCount", targetTrainCount);
+        nbt.putInt("SpawnIntervalSeconds", spawnIntervalSeconds);
         nbt.putBoolean("RedstoneControlled", redstoneControlled);
         nbt.putBoolean("CircularLine", circularLine);
         nbt.putInt("CooldownTicks", cooldownTicks);
         nbt.putBoolean("WasPowered", wasPowered);
+        nbt.put("LastMinecartDebug", lastMinecartDebug.toNbt());
     }
 
     @Override
     public void readNbt(NbtCompound nbt, RegistryWrapper.WrapperLookup registries) {
         super.readNbt(nbt, registries);
-        cityName = sanitizeText(nbt.getString("CityName"), 32, "Default");
-        lineId = sanitizeText(nbt.getString("LineId"), 32, "L1");
+        cityName = sanitizeText(nbt.getString("CityName"), 32, BetterRailwaySystemDataSchema.defaultCityName());
+        lineId = sanitizeText(nbt.getString("LineId"), 32, BetterRailwaySystemDataSchema.defaultLineId());
         lineThemeColor = LineThemeColor.fromString(nbt.getString("LineThemeColor")).serializedName();
-        direction = TrainSpawnDirection.fromString(nbt.getString("Direction"));
+        direction = nbt.contains("Direction") ? TrainSpawnDirection.fromString(nbt.getString("Direction")) : BetterRailwaySystemDataSchema.defaultTrainSpawnDirection();
         targetTrainCount = nbt.contains("TargetTrainCount")
                 ? MathHelper.clamp(nbt.getInt("TargetTrainCount"), 1, 64)
-                : 1;
+                : BetterRailwaySystemDataSchema.defaultTargetTrainCount();
+        spawnIntervalSeconds = nbt.contains("SpawnIntervalSeconds")
+                ? MathHelper.clamp(nbt.getInt("SpawnIntervalSeconds"), 1, 3600)
+                : BetterRailwaySystemDataSchema.defaultSpawnerIntervalSeconds();
         redstoneControlled = nbt.getBoolean("RedstoneControlled");
         circularLine = nbt.getBoolean("CircularLine");
-        cooldownTicks = nbt.contains("CooldownTicks") ? nbt.getInt("CooldownTicks") : 20;
+        cooldownTicks = nbt.contains("CooldownTicks") ? nbt.getInt("CooldownTicks") : BetterRailwaySystemDataSchema.defaultSpawnerCooldownTicks();
         wasPowered = nbt.getBoolean("WasPowered");
+        lastMinecartDebug = nbt.contains("LastMinecartDebug") ? MinecartDebugSnapshot.fromNbt(nbt.getCompound("LastMinecartDebug")) : MinecartDebugSnapshot.empty();
+        if (!nbt.contains(BetterRailwaySystemDataSchema.VERSION_KEY)) {
+            markDirty();
+        }
     }
 
     @Override
@@ -188,6 +222,7 @@ public final class TrainSpawnerBlockEntity extends BlockEntity {
             access.betterrailwaysystem$setNextStation("");
         }
         applySpawnVelocity(minecart, resolvedDirection);
+        recordLastMinecart(minecart);
         world.spawnEntity(minecart);
         return true;
     }
@@ -210,12 +245,12 @@ public final class TrainSpawnerBlockEntity extends BlockEntity {
         return count;
     }
 
-    private int betterrailwaysystem$computeCooldownTicks(ServerWorld world, int activeMinecartCount) {
+    private int betterrailwaysystem$computeCircularCooldownTicks(int activeMinecartCount) {
         int clampedTarget = MathHelper.clamp(targetTrainCount, 1, 64);
         if (activeMinecartCount >= clampedTarget) {
             return 20;
         }
-        double routeLength = circularLine ? 160.0 : 120.0;
+        double routeLength = 160.0;
         double maxSpeedBps = Math.max(1.0, BetterRailwaySystem.config().maxSpeed);
         double cycleSeconds = Math.max(4.0, routeLength / maxSpeedBps);
         double spacingSeconds = Math.max(1.0, cycleSeconds / clampedTarget);

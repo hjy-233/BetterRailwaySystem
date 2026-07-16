@@ -68,5 +68,7 @@ public interface BetterRailwaySystemAccess {
 
     boolean betterrailwaysystem$isWaitingAtStopRail();
 
+    boolean betterrailwaysystem$isDepartingFromStopRail();
+
     void betterrailwaysystem$setWaitingAtStopRail(boolean value);
 }

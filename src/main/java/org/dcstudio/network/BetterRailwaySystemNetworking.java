@@ -3,6 +3,7 @@ package org.dcstudio.network;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
@@ -17,10 +18,15 @@ import org.dcstudio.station.RailwayBaliseBlockEntity;
 import org.dcstudio.station.StopRailBlockEntity;
 import org.dcstudio.station.TrainSpawnerBlockEntity;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 // 集中注册服务端网络，并处理铁路配置界面保存。
 public final class BetterRailwaySystemNetworking {
+    private static final Map<UUID, Boolean> DEBUG_TRACKING_NO_CLIP = new HashMap<>();
+
     private BetterRailwaySystemNetworking() {
     }
 
@@ -34,6 +40,7 @@ public final class BetterRailwaySystemNetworking {
         PayloadTypeRegistry.playC2S().register(SaveTrainSpawnerPayload.ID, SaveTrainSpawnerPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(UploadBaliseAssetPayload.ID, UploadBaliseAssetPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(RequestBaliseAssetSyncPayload.ID, RequestBaliseAssetSyncPayload.CODEC);
+        PayloadTypeRegistry.playC2S().register(DebugTrackingPayload.ID, DebugTrackingPayload.CODEC);
         PayloadTypeRegistry.playS2C().register(BaliseAssetCatalogPayload.ID, BaliseAssetCatalogPayload.CODEC);
         PayloadTypeRegistry.playS2C().register(SyncBaliseAssetPayload.ID, SyncBaliseAssetPayload.CODEC);
         PayloadTypeRegistry.playS2C().register(BaliseAssetSyncCompletePayload.ID, BaliseAssetSyncCompletePayload.CODEC);
@@ -52,9 +59,25 @@ public final class BetterRailwaySystemNetworking {
         ServerPlayNetworking.registerGlobalReceiver(RequestBaliseAssetSyncPayload.ID, (payload, context) ->
                 context.server().execute(() -> requestBaliseAssetSync(context.player()))
         );
+        ServerPlayNetworking.registerGlobalReceiver(DebugTrackingPayload.ID, (payload, context) ->
+                context.server().execute(() -> setDebugTracking(context.player(), payload.tracking()))
+        );
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) ->
                 server.execute(() -> ServerBaliseAssetLibrary.syncToPlayer(handler.player))
         );
+        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) ->
+                server.execute(() -> restoreDebugTracking(handler.player))
+        );
+        ServerTickEvents.END_SERVER_TICK.register(server -> {
+            if (DEBUG_TRACKING_NO_CLIP.isEmpty()) {
+                return;
+            }
+            for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
+                if (DEBUG_TRACKING_NO_CLIP.containsKey(player.getUuid())) {
+                    player.noClip = true;
+                }
+            }
+        });
     }
 
     public static void openEditor(ServerPlayerEntity player, RailwayBaliseBlockEntity blockEntity) {
@@ -115,6 +138,7 @@ public final class BetterRailwaySystemNetworking {
                 blockEntity.getLineThemeColor(),
                 blockEntity.getDirection().serializedName(),
                 blockEntity.getTargetTrainCount(),
+                blockEntity.getSpawnIntervalSeconds(),
                 (blockEntity.isRedstoneControlled() ? 1 : 0) | (blockEntity.isCircularLine() ? 2 : 0),
                 cityOptions
         ));
@@ -150,7 +174,7 @@ public final class BetterRailwaySystemNetworking {
     private static void saveTrainSpawner(ServerPlayerEntity player, SaveTrainSpawnerPayload payload) {
         TrainSpawnerBlockEntity blockEntity = getNearbyBlockEntity(player, payload.pos(), TrainSpawnerBlockEntity.class);
         if (blockEntity != null) {
-            blockEntity.setSettings(payload.cityName(), payload.lineId(), payload.lineThemeColor(), TrainSpawnDirection.fromString(payload.direction()), payload.targetTrainCount(), payload.redstoneControlled(), payload.circularLine());
+            blockEntity.setSettings(payload.cityName(), payload.lineId(), payload.lineThemeColor(), TrainSpawnDirection.fromString(payload.direction()), payload.targetTrainCount(), payload.spawnIntervalSeconds(), payload.redstoneControlled(), payload.circularLine());
         }
     }
 
@@ -180,5 +204,25 @@ public final class BetterRailwaySystemNetworking {
 
     private static boolean betterrailwaysystem$canModifyServerAssets(ServerPlayerEntity player) {
         return player.getServer() == null || !player.getServer().isDedicated() || player.hasPermissionLevel(2);
+    }
+
+    private static void setDebugTracking(ServerPlayerEntity player, boolean tracking) {
+        if (tracking) {
+            DEBUG_TRACKING_NO_CLIP.putIfAbsent(player.getUuid(), player.noClip);
+            player.noClip = true;
+        } else {
+            restoreDebugTracking(player);
+        }
+    }
+
+    private static void restoreDebugTracking(ServerPlayerEntity player) {
+        Boolean previousNoClip = DEBUG_TRACKING_NO_CLIP.remove(player.getUuid());
+        if (previousNoClip != null) {
+            player.noClip = previousNoClip;
+        }
+    }
+
+    public static boolean isDebugTracking(ServerPlayerEntity player) {
+        return DEBUG_TRACKING_NO_CLIP.containsKey(player.getUuid());
     }
 }

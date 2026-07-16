@@ -82,6 +82,9 @@ dependencies {
     modCompileOnly("maven.modrinth:modmenu:11.0.4") {
         transitive = false
     }
+    modRuntimeOnly("maven.modrinth:modmenu:11.0.4") {
+        transitive = false
+    }
 }
 
 processResources {

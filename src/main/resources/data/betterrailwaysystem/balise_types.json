@@ -1,0 +1,58 @@
+{
+  "order": [
+    "arrival",
+    "departure",
+    "announcement",
+    "speed_limit_start",
+    "speed_limit_end"
+  ],
+  "types": {
+    "arrival": {
+      "fields": [
+        "trigger_direction",
+        "current_station",
+        "next_station",
+        "bossbar"
+      ]
+    },
+    "departure": {
+      "fields": [
+        "trigger_direction",
+        "current_station",
+        "next_station",
+        "bossbar"
+      ]
+    },
+    "announcement": {
+      "fields": [
+        "trigger_direction",
+        "title",
+        "subtitle",
+        "current_station",
+        "next_station",
+        "sound",
+        "image",
+        "image_duration",
+        "keep_image",
+        "bossbar"
+      ]
+    },
+    "speed_limit_start": {
+      "fields": [
+        "trigger_direction",
+        "speed_limit"
+      ]
+    },
+    "speed_limit_end": {
+      "fields": [
+        "trigger_direction",
+        "title",
+        "subtitle",
+        "sound",
+        "image",
+        "image_duration",
+        "keep_image"
+      ]
+    }
+  }
+}

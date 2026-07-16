@@ -9,6 +9,7 @@ import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.text.Text;
 import net.minecraft.util.math.MathHelper;
 import org.dcstudio.minecart.StopRailWaitMode;
+import org.dcstudio.minecart.UiOptionData;
 import org.dcstudio.network.OpenStopRailEditorPayload;
 import org.dcstudio.network.SaveStopRailPayload;
 
@@ -56,7 +57,7 @@ public final class StopRailScreen extends Screen {
 
         waitModeButton = CyclingButtonWidget.<StopRailWaitMode>builder(mode ->
                         Text.translatable("screen.betterrailwaysystem.wait_mode." + mode.serializedName()))
-                .values(List.of(StopRailWaitMode.values()))
+                .values(UiOptionData.stopRailWaitModes())
                 .initially(StopRailWaitMode.fromString(payload.waitMode()))
                 .build(0, 0, 100, 20, Text.empty());
 

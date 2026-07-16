@@ -13,6 +13,7 @@ import net.minecraft.util.math.MathHelper;
 import org.dcstudio.asset.BaliseAssetType;
 import org.dcstudio.client.asset.BaliseAssetLibrary;
 import org.dcstudio.minecart.BaliseMode;
+import org.dcstudio.minecart.BaliseTypeData;
 import org.dcstudio.minecart.TrainSpawnDirection;
 import org.dcstudio.network.OpenBaliseEditorPayload;
 import org.dcstudio.network.SaveBalisePayload;
@@ -66,7 +67,7 @@ public final class RailwayBaliseScreen extends Screen {
 
         modeButton = CyclingButtonWidget.<BaliseMode>builder(mode ->
                         Text.translatable("screen.betterrailwaysystem.mode." + mode.serializedName()))
-                .values(List.of(BaliseMode.values()))
+                .values(BaliseTypeData.modes())
                 .initially(initialMode)
                 .build(0, 0, 130, 20, Text.empty(), (button, value) -> betterrailwaysystem$refreshRows());
 
@@ -189,34 +190,38 @@ public final class RailwayBaliseScreen extends Screen {
         BaliseMode mode = modeButton.getValue() == null ? payload.parsedMode() : modeButton.getValue();
         List<NativeFormWidgets.RowEntry> rows = new ArrayList<>();
         rows.add(new NativeFormWidgets.LabeledWidgetEntry(Text.translatable("screen.betterrailwaysystem.balise_mode"), modeButton, LABEL_WIDTH));
-        rows.add(new NativeFormWidgets.LabeledWidgetEntry(Text.translatable("screen.betterrailwaysystem.trigger_direction"), triggerDirectionButton, LABEL_WIDTH));
-        rows.add(new NativeFormWidgets.HintEntry(betterrailwaysystem$triggerDirectionHint()));
-        if (betterrailwaysystem$showsTitleField(mode)) {
+        if (BaliseTypeData.shows(mode, BaliseTypeData.FIELD_TRIGGER_DIRECTION)) {
+            rows.add(new NativeFormWidgets.LabeledWidgetEntry(Text.translatable("screen.betterrailwaysystem.trigger_direction"), triggerDirectionButton, LABEL_WIDTH));
+            rows.add(new NativeFormWidgets.HintEntry(betterrailwaysystem$triggerDirectionHint()));
+        }
+        if (BaliseTypeData.shows(mode, BaliseTypeData.FIELD_TITLE)) {
             rows.add(new NativeFormWidgets.LabeledWidgetEntry(Text.translatable("screen.betterrailwaysystem.title_text"), titleField, LABEL_WIDTH));
         }
-        if (betterrailwaysystem$showsSubtitleField(mode)) {
+        if (BaliseTypeData.shows(mode, BaliseTypeData.FIELD_SUBTITLE)) {
             rows.add(new NativeFormWidgets.LabeledWidgetEntry(Text.translatable("screen.betterrailwaysystem.subtitle_text"), subtitleField, LABEL_WIDTH));
         }
-        if (betterrailwaysystem$showsStationFields(mode)) {
+        if (BaliseTypeData.shows(mode, BaliseTypeData.FIELD_CURRENT_STATION)) {
             rows.add(new NativeFormWidgets.LabeledWidgetEntry(Text.translatable("screen.betterrailwaysystem.current_station"), currentStationField, LABEL_WIDTH));
+        }
+        if (BaliseTypeData.shows(mode, BaliseTypeData.FIELD_NEXT_STATION)) {
             rows.add(new NativeFormWidgets.LabeledWidgetEntry(Text.translatable("screen.betterrailwaysystem.next_station"), nextStationField, LABEL_WIDTH));
         }
-        if (betterrailwaysystem$showsSoundField(mode)) {
+        if (BaliseTypeData.shows(mode, BaliseTypeData.FIELD_SOUND)) {
             rows.add(new NativeFormWidgets.LabeledDualWidgetEntry(Text.translatable("screen.betterrailwaysystem.sound_id"), soundIdField, soundLibraryButton, LABEL_WIDTH, LIBRARY_BUTTON_WIDTH));
         }
-        if (betterrailwaysystem$showsImageField(mode)) {
+        if (BaliseTypeData.shows(mode, BaliseTypeData.FIELD_IMAGE)) {
             rows.add(new NativeFormWidgets.LabeledDualWidgetEntry(Text.translatable("screen.betterrailwaysystem.image_id"), imageIdField, imageLibraryButton, LABEL_WIDTH, LIBRARY_BUTTON_WIDTH));
         }
-        if (betterrailwaysystem$showsImageDurationField(mode)) {
+        if (BaliseTypeData.shows(mode, BaliseTypeData.FIELD_IMAGE_DURATION)) {
             rows.add(new NativeFormWidgets.LabeledWidgetEntry(Text.translatable("screen.betterrailwaysystem.image_duration"), durationField, LABEL_WIDTH));
         }
-        if (betterrailwaysystem$showsSpeedLimitField(mode)) {
+        if (BaliseTypeData.shows(mode, BaliseTypeData.FIELD_SPEED_LIMIT)) {
             rows.add(new NativeFormWidgets.LabeledWidgetEntry(Text.translatable("screen.betterrailwaysystem.speed_limit"), speedLimitField, LABEL_WIDTH));
         }
-        if (betterrailwaysystem$showsKeepImageField(mode)) {
+        if (BaliseTypeData.shows(mode, BaliseTypeData.FIELD_KEEP_IMAGE)) {
             rows.add(new NativeFormWidgets.FullWidthWidgetEntry(keepImageCheckbox));
         }
-        if (betterrailwaysystem$showsBossBarField(mode)) {
+        if (BaliseTypeData.shows(mode, BaliseTypeData.FIELD_BOSS_BAR)) {
             rows.add(new NativeFormWidgets.FullWidthWidgetEntry(bossBarCheckbox));
         }
         formList.setEntries(rows);
@@ -251,42 +256,6 @@ public final class RailwayBaliseScreen extends Screen {
         textField.setMaxLength(maxLength);
         textField.setText(value == null ? "" : value);
         return textField;
-    }
-
-    private static boolean betterrailwaysystem$showsTitleField(BaliseMode mode) {
-        return mode == BaliseMode.ANNOUNCEMENT || mode == BaliseMode.SPEED_LIMIT_END;
-    }
-
-    private static boolean betterrailwaysystem$showsSubtitleField(BaliseMode mode) {
-        return betterrailwaysystem$showsTitleField(mode);
-    }
-
-    private static boolean betterrailwaysystem$showsStationFields(BaliseMode mode) {
-        return mode == BaliseMode.ARRIVAL || mode == BaliseMode.DEPARTURE || mode == BaliseMode.ANNOUNCEMENT;
-    }
-
-    private static boolean betterrailwaysystem$showsSoundField(BaliseMode mode) {
-        return mode != BaliseMode.SPEED_LIMIT_START;
-    }
-
-    private static boolean betterrailwaysystem$showsImageField(BaliseMode mode) {
-        return mode != BaliseMode.SPEED_LIMIT_START;
-    }
-
-    private static boolean betterrailwaysystem$showsImageDurationField(BaliseMode mode) {
-        return mode != BaliseMode.SPEED_LIMIT_START;
-    }
-
-    private static boolean betterrailwaysystem$showsSpeedLimitField(BaliseMode mode) {
-        return mode == BaliseMode.SPEED_LIMIT_START;
-    }
-
-    private static boolean betterrailwaysystem$showsKeepImageField(BaliseMode mode) {
-        return mode != BaliseMode.SPEED_LIMIT_START;
-    }
-
-    private static boolean betterrailwaysystem$showsBossBarField(BaliseMode mode) {
-        return mode == BaliseMode.ARRIVAL || mode == BaliseMode.DEPARTURE || mode == BaliseMode.ANNOUNCEMENT;
     }
 
     private Text betterrailwaysystem$triggerDirectionHint() {

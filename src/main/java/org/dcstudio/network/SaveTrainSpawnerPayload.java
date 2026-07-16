@@ -15,6 +15,7 @@ public record SaveTrainSpawnerPayload(
         String lineThemeColor,
         String direction,
         int targetTrainCount,
+        int spawnIntervalSeconds,
         int flags
 ) implements CustomPayload {
     public static final Id<SaveTrainSpawnerPayload> ID = new Id<>(BetterRailwaySystem.id("save_train_spawner"));
@@ -26,6 +27,7 @@ public record SaveTrainSpawnerPayload(
                 PacketCodecs.STRING.encode(buf, payload.lineThemeColor);
                 PacketCodecs.STRING.encode(buf, payload.direction);
                 PacketCodecs.VAR_INT.encode(buf, payload.targetTrainCount);
+                PacketCodecs.VAR_INT.encode(buf, payload.spawnIntervalSeconds);
                 PacketCodecs.VAR_INT.encode(buf, payload.flags);
             },
             buf -> new SaveTrainSpawnerPayload(
@@ -34,6 +36,7 @@ public record SaveTrainSpawnerPayload(
                     PacketCodecs.STRING.decode(buf),
                     PacketCodecs.STRING.decode(buf),
                     PacketCodecs.STRING.decode(buf),
+                    PacketCodecs.VAR_INT.decode(buf),
                     PacketCodecs.VAR_INT.decode(buf),
                     PacketCodecs.VAR_INT.decode(buf)
             )

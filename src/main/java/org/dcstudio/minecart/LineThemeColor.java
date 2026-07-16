@@ -29,11 +29,11 @@ public enum LineThemeColor {
     }
 
     public int rgb() {
-        return rgb;
+        return LineThemeColorData.rgb(serializedName, rgb);
     }
 
     public BossBar.Color bossBarColor() {
-        return bossBarColor;
+        return LineThemeColorData.bossBarColor(serializedName, bossBarColor);
     }
 
     public static LineThemeColor fromString(String value) {

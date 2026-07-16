@@ -1,0 +1,18 @@
+{
+  "stop_rail_wait_modes": [
+    "immediate",
+    "timer",
+    "redstone"
+  ],
+  "line_theme_colors": [
+    "red",
+    "orange",
+    "yellow",
+    "green",
+    "cyan",
+    "blue",
+    "purple",
+    "pink",
+    "white"
+  ]
+}

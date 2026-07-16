@@ -8,6 +8,7 @@ import net.minecraft.nbt.NbtString;
 import net.minecraft.registry.RegistryWrapper;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.world.PersistentState;
+import org.dcstudio.config.BetterRailwaySystemDataSchema;
 
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -37,6 +38,9 @@ public final class RailwayCityState extends PersistentState {
                 state.cities.add(city);
             }
         }
+        if (!nbt.contains(BetterRailwaySystemDataSchema.VERSION_KEY)) {
+            state.markDirty();
+        }
         return state;
     }
 
@@ -55,6 +59,7 @@ public final class RailwayCityState extends PersistentState {
 
     @Override
     public NbtCompound writeNbt(NbtCompound nbt, RegistryWrapper.WrapperLookup registries) {
+        nbt.putInt(BetterRailwaySystemDataSchema.VERSION_KEY, BetterRailwaySystemDataSchema.currentVersion());
         NbtList list = new NbtList();
         for (String city : cities) {
             list.add(NbtString.of(city));
